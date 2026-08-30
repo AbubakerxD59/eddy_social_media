@@ -1,0 +1,99 @@
+<script setup lang="ts">
+import { Form, Head } from '@inertiajs/vue3';
+import { ref } from 'vue';
+import InputError from '@/components/InputError.vue';
+import PasswordInput from '@/components/PasswordInput.vue';
+import PasswordStrength from '@/components/PasswordStrength.vue';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { update } from '@/routes/password';
+import { notifySuccess } from '@/lib/notify';
+
+defineOptions({
+    layout: {
+        title: 'Reset password',
+        description: 'Please enter your new password below',
+    },
+});
+
+const props = defineProps<{
+    token: string;
+    email: string;
+    passwordRules: string;
+}>();
+
+const inputEmail = ref(props.email);
+const password = ref('');
+const passwordConfirmation = ref('');
+</script>
+
+<template>
+    <Head title="Reset password" />
+
+    <Form
+        v-bind="update.form()"
+        :transform="(data) => ({ ...data, token, email })"
+        :reset-on-success="['password', 'password_confirmation']"
+        v-slot="{ errors, processing }"
+        @success="notifySuccess('Your password has been reset.')"
+    >
+        <div class="grid gap-6">
+            <div class="grid gap-2">
+                <Label for="email">Email</Label>
+                <Input
+                    id="email"
+                    type="email"
+                    name="email"
+                    autocomplete="email"
+                    v-model="inputEmail"
+                    class="mt-1 block w-full"
+                    readonly
+                />
+                <InputError :message="errors.email" class="mt-2" />
+            </div>
+
+            <div class="grid gap-2">
+                <Label for="password">Password</Label>
+                <PasswordInput
+                    id="password"
+                    v-model="password"
+                    name="password"
+                    autocomplete="new-password"
+                    class="mt-1 block w-full"
+                    autofocus
+                    placeholder="Password"
+                    :passwordrules="passwordRules"
+                />
+                <InputError :message="errors.password" />
+                <PasswordStrength
+                    :password="password"
+                    :confirmation="passwordConfirmation"
+                />
+            </div>
+
+            <div class="grid gap-2">
+                <Label for="password_confirmation"> Confirm password </Label>
+                <PasswordInput
+                    id="password_confirmation"
+                    v-model="passwordConfirmation"
+                    name="password_confirmation"
+                    autocomplete="new-password"
+                    class="mt-1 block w-full"
+                    placeholder="Confirm password"
+                    :passwordrules="passwordRules"
+                />
+                <InputError :message="errors.password_confirmation" />
+            </div>
+
+            <Button
+                type="submit"
+                class="mt-4 w-full"
+                :loading="processing"
+                data-test="reset-password-button"
+            >
+                Reset password
+            </Button>
+        </div>
+    </Form>
+</template>

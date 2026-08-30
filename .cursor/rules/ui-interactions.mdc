@@ -1,0 +1,34 @@
+---
+description: Project-wide click, loading, delete, and action-feedback UI rules
+globs: resources/js/**/*.{vue,ts,css}
+alwaysApply: true
+---
+
+# UI interaction rules
+
+Apply these on every new or changed action surface.
+
+## Pointer cursor
+
+Every clickable uses `cursor-pointer` (links, buttons, menu items, clickable cards). Disabled controls use `cursor-not-allowed`. Prefer the shared `Button` and global CSS — do not add `cursor-default` on interactive elements.
+
+## Button loaders
+
+If an action waits on the network, set `:loading` on `Button`. The button must replace its label with the spinner, then restore the original label when the request finishes. Do not keep the original text beside the spinner.
+
+```vue
+<Button type="submit" :loading="processing">Save</Button>
+```
+
+## Delete confirmation
+
+Never use `window.confirm` or a plain dialog for deletes. Use `ConfirmDeleteDialog` (glass popup) with a clear title, consequence, Cancel, and a destructive confirm button that uses `:loading`.
+
+## Action feedback
+
+Every action button must show a success or error message after it runs (toast via `notifySuccess` / `notifyError`, or an Inertia flash toast). Field errors can stay inline, but the user still gets a toast. Do not swallow failures.
+
+```ts
+notifySuccess('Profile updated.');
+notifyError(firstValidationError(errors) ?? 'Something went wrong. Please try again.');
+```
