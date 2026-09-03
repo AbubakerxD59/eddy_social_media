@@ -5,6 +5,7 @@ namespace App\Providers;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
 
@@ -31,6 +32,9 @@ class AppServiceProvider extends ServiceProvider
      */
     protected function configureDefaults(): void
     {
+        // utf8mb4 indexes on older MySQL/MariaDB (and MyISAM) cap at 767–1000 bytes.
+        Schema::defaultStringLength(191);
+
         Date::use(CarbonImmutable::class);
 
         DB::prohibitDestructiveCommands(
