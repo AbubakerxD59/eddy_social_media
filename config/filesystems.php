@@ -33,14 +33,14 @@ return [
         'local' => [
             'driver' => 'local',
             'root' => storage_path('app/private'),
-            'serve' => true,
+            'serve' => false, // Do not claim /storage; public uploads use that path
             'throw' => false,
             'report' => false,
         ],
 
         'public' => [
             'driver' => 'local',
-            'root' => public_path('storage'),
+            'root' => storage_path('app/public'),
             'url' => rtrim((string) env('APP_URL', 'http://localhost'), '/').'/storage',
             'visibility' => 'public',
             'throw' => false,

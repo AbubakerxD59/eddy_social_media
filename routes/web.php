@@ -4,10 +4,15 @@ use App\Http\Controllers\FeedController;
 use App\Http\Controllers\LinkPreviewController;
 use App\Http\Controllers\MentorController;
 use App\Http\Controllers\PublicProfileController;
+use App\Http\Controllers\PublicStorageController;
 use App\Http\Controllers\SignalController;
 use App\Http\Controllers\UserMuteController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
+
+Route::get('/storage/{path}', PublicStorageController::class)
+    ->where('path', '.*')
+    ->name('storage.show');
 
 Route::get('/', function () {
     if (auth()->check()) {

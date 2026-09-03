@@ -5,6 +5,10 @@
 
     RewriteEngine On
 
+    # Shared hosts often 403 the public/storage symlink. Send those
+    # requests through Laravel instead of letting Apache follow the link.
+    RewriteRule ^storage(?:/|$) index.php [L]
+
     # Handle Authorization Header
     RewriteCond %{HTTP:Authorization} .
     RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
