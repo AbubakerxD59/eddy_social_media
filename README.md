@@ -33,16 +33,25 @@ php artisan serve
 
 Open [http://localhost:8000](http://localhost:8000). Seeded login: `ada@eddy.test` / `password`.
 
-## Hostinger shared hosting
+## Namecheap / cPanel shared hosting
 
-Build assets on your machine, then upload. Do not run Vite on the server.
+Build assets on your machine (`npm ci && npm run build`), commit `public/build`, and pull on the server. Do not run Vite or npm over SSH.
+
+Prefer pointing the domain’s document root at `public`:
+
+- cPanel → **Domains** → `bizsphere.forflippers.com` → **Manage**
+- Document root: `bizsphere.forflippers.com/public`
+- Production `APP_URL`: `https://bizsphere.forflippers.com` (no `/public` suffix)
+
+If the document root has to stay on the repo folder, the root `.htaccess` maps `/build/assets` and routes into `public/`. After a pull:
 
 ```bash
-npm ci && npm run build
+cd ~/bizsphere.forflippers.com
+git pull origin main
+php artisan config:clear
+php artisan view:clear
 ```
 
-- Keep the Laravel app above `public_html`
-- Put `index.php`, `.htaccess`, and `public/build` in `public_html`
 - Point production `FILESYSTEM_DISK` at S3 or R2 before you store real video
 - Use cron: `* * * * * php artisan schedule:run`
 - Live chat later: Laravel Echo + Pusher/Ably on shared hosting, then Reverb on a VPS

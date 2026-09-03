@@ -1,0 +1,23 @@
+<IfModule mod_rewrite.c>
+    <IfModule mod_negotiation.c>
+        Options -MultiViews -Indexes
+    </IfModule>
+
+    RewriteEngine On
+
+    # cPanel addon domains often use this folder as the document root,
+    # not public/. Keep source and secrets off the web.
+    RewriteRule ^\.env - [F,L]
+    RewriteRule ^(?:\.git)(?:/|$) - [F,L]
+    RewriteRule ^(?:app|bootstrap|config|database|resources|routes|tests|vendor|node_modules)(?:/|$) - [F,L]
+    RewriteRule ^(?:artisan|composer\.json|composer\.lock)$ - [F,L]
+
+    # /storage URLs are public uploads. Do not serve ~/storage from the web.
+    RewriteRule ^storage(?:/|$) public/index.php [L]
+
+    # Already under public/ (APP_URL that still includes /public).
+    RewriteRule ^public/ - [L]
+
+    # Send /build/assets, favicons, and app routes into public/.
+    RewriteRule ^(.*)$ public/$1 [L]
+</IfModule>
