@@ -93,6 +93,11 @@ class StoreSignalRequest extends FormRequest
         });
     }
 
+    protected function existingMediaCountsForDrop(): bool
+    {
+        return false;
+    }
+
     /**
      * @return list<string>
      */
@@ -134,7 +139,7 @@ class StoreSignalRequest extends FormRequest
         $hasUploads = is_array($this->input('media_ids')) && $this->input('media_ids') !== [];
         $hasLink = filled($this->input('link_url'));
 
-        if ($hasBody || $hasMedia || $hasUploads || $hasLink) {
+        if ($hasBody || $hasMedia || $hasUploads || $hasLink || $this->existingMediaCountsForDrop()) {
             return;
         }
 

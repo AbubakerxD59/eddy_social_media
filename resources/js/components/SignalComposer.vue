@@ -11,12 +11,13 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { useSignalComposer } from '@/composables/useSignalComposer';
-import type { SignalType } from '@/types/social';
+import type { FeedSignal, SignalType } from '@/types/social';
 
-const { variant = 'inline', parentId, initialType } = defineProps<{
+const { variant = 'inline', parentId, initialType, editing = null } = defineProps<{
     variant?: 'inline' | 'dock';
     parentId?: string;
     initialType?: SignalType | null;
+    editing?: FeedSignal | null;
 }>();
 
 const emit = defineEmits<{
@@ -24,14 +25,17 @@ const emit = defineEmits<{
     created: [];
 }>();
 
-const dialogOpen = ref(false);
+const isEditing = computed(() => editing != null);
+const dialogOpen = ref(isEditing.value);
 
 const composer = useSignalComposer({
-    parentId,
-    initialType: initialType ?? undefined,
+    parentId: editing ? undefined : parentId,
+    initialType: editing?.type ?? initialType ?? undefined,
+    editing: editing ?? undefined,
     onSuccess: () => {
         dialogOpen.value = false;
         emit('created');
+        emit('close');
     },
 });
 
@@ -48,9 +52,14 @@ const {
     submit,
 } = composer;
 
-const usesTypeDialog = computed(() => variant === 'inline' && !isReply.value);
+const usesTypeDialog = computed(() => variant === 'inline' && !isReply.value && !isEditing.value);
+const showComposerDialog = computed(() => usesTypeDialog.value || isEditing.value);
 
 const preventDismiss = (event: Event) => {
+    if (isEditing.value) {
+        return;
+    }
+
     event.preventDefault();
 };
 
@@ -62,6 +71,11 @@ const openType = (type: SignalType) => {
 
 watch(dialogOpen, (isOpen) => {
     if (!isOpen) {
+        if (isEditing.value) {
+            emit('close');
+            return;
+        }
+
         resetComposer();
         return;
     }
@@ -87,6 +101,18 @@ watch(
 );
 
 onMounted(() => {
+    if (isEditing.value) {
+        void nextTick(() => {
+            if (form.type === 'need' || form.type === 'opportunity') {
+                composer.focusTitle();
+                return;
+            }
+
+            focusBody();
+        });
+        return;
+    }
+
     if (usesTypeDialog.value) {
         return;
     }
@@ -109,7 +135,7 @@ onMounted(() => {
         />
     </section>
 
-    <Dialog v-if="usesTypeDialog" :open="dialogOpen" @update:open="dialogOpen = $event">
+    <Dialog v-if="showComposerDialog" :open="dialogOpen" @update:open="dialogOpen = $event">
         <DialogContent
             class="flex max-h-[min(92svh,52rem)] flex-col gap-0 p-0 sm:max-w-3xl"
             @pointer-down-outside="preventDismiss"
@@ -119,9 +145,9 @@ onMounted(() => {
         >
             <div class="flex items-center justify-between border-b px-5 py-3 pr-12">
                 <div>
-                    <DialogTitle>New {{ meta.label.toLowerCase() }}</DialogTitle>
+                    <DialogTitle>{{ isEditing ? 'Edit' : 'New' }} {{ meta.label.toLowerCase() }}</DialogTitle>
                     <DialogDescription class="text-muted-foreground text-sm">
-                        {{ meta.description }}
+                        {{ isEditing ? 'Update this signal and save your changes.' : meta.description }}
                     </DialogDescription>
                 </div>
             </div>
@@ -155,7 +181,7 @@ onMounted(() => {
     </Dialog>
 
     <form
-        v-if="!usesTypeDialog"
+        v-if="!usesTypeDialog && !isEditing"
         :class="
             variant === 'dock'
                 ? 'glass-popup flex max-h-[min(36rem,calc(100vh-3rem))] w-[min(36rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl'

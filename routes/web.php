@@ -32,6 +32,7 @@ Route::get('/s/{signal}', [SignalController::class, 'show'])->name('signals.show
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('dashboard', FeedController::class)->name('dashboard');
     Route::post('signals', [SignalController::class, 'store'])->name('signals.store');
+    Route::patch('signals/{signal}', [SignalController::class, 'update'])->name('signals.update');
     Route::post('signals/uploads', [SignalUploadController::class, 'store'])->name('signals.uploads.store');
     Route::delete('signals/uploads/{upload}', [SignalUploadController::class, 'destroy'])->name('signals.uploads.destroy');
     Route::post('stories', [StoryController::class, 'store'])->name('stories.store');

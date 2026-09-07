@@ -315,6 +315,84 @@ test('users cannot delete someone elses signal', function () {
     $this->assertDatabaseHas('signals', ['id' => $signal->id]);
 });
 
+test('owners can edit their signal', function () {
+    $user = User::factory()->create();
+    $signal = Signal::factory()->for($user)->create(['body' => 'Original drop.']);
+
+    $this->actingAs($user)
+        ->from(route('dashboard'))
+        ->patch(route('signals.update', $signal), [
+            'type' => SignalType::Drop->value,
+            'body' => 'Updated drop.',
+        ])
+        ->assertRedirect(route('dashboard'));
+
+    expect($signal->refresh()->body)->toBe('Updated drop.');
+});
+
+test('owners can edit a need without changing its type', function () {
+    $user = User::factory()->create();
+    $signal = Signal::factory()->for($user)->need()->at(28.5383, -81.3792, 'Orlando, FL')->create();
+
+    $this->actingAs($user)
+        ->from(route('dashboard'))
+        ->patch(route('signals.update', $signal), [
+            'type' => SignalType::Drop->value,
+            'title' => 'Need a plumber this week',
+            'body' => 'Updated description.',
+            'location' => 'Tampa, FL',
+            'latitude' => 27.9506,
+            'longitude' => -82.4572,
+        ])
+        ->assertRedirect(route('dashboard'));
+
+    $signal->refresh();
+
+    expect($signal->type)->toBe(SignalType::Need)
+        ->and($signal->title)->toBe('Need a plumber this week')
+        ->and($signal->body)->toBe('Updated description.')
+        ->and($signal->payload['location'])->toBe('Tampa, FL')
+        ->and($signal->latitude)->toEqual(27.9506)
+        ->and($signal->longitude)->toEqual(-82.4572);
+});
+
+test('users cannot edit someone elses signal', function () {
+    $author = User::factory()->create();
+    $stranger = User::factory()->create();
+    $signal = Signal::factory()->for($author)->create(['body' => 'Leave this.']);
+
+    $this->actingAs($stranger)
+        ->patch(route('signals.update', $signal), [
+            'body' => 'Hijacked.',
+        ])
+        ->assertForbidden();
+
+    expect($signal->refresh()->body)->toBe('Leave this.');
+});
+
+test('the feed marks a signal as editable for its owner', function () {
+    $owner = User::factory()->create();
+    $stranger = User::factory()->create();
+    $signal = Signal::factory()->for($owner)->create();
+
+    $this->actingAs($owner)
+        ->get(route('dashboard'))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->loadDeferredProps('feed', fn ($page) => $page
+                ->where('signals.data.0.id', $signal->public_id)
+                ->where('signals.data.0.can_edit', true)
+                ->where('signals.data.0.can_delete', true)));
+
+    $this->actingAs($stranger)
+        ->get(route('dashboard'))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->loadDeferredProps('feed', fn ($page) => $page
+                ->where('signals.data.0.can_edit', false)
+                ->where('signals.data.0.can_delete', false)));
+});
+
 test('the feed never exposes the numeric signal id', function () {
     $user = User::factory()->create();
     $signal = Signal::factory()->for($user)->create();

@@ -31,3 +31,24 @@ export function formatTimelineDuration(amount: string | number | null | undefine
 
     return `${count} ${count === 1 ? labels.one : labels.many}`;
 }
+
+export function parseTimelineDuration(value: string | null | undefined): { amount: string; unit: TimelineUnit } {
+    const match = String(value ?? '')
+        .trim()
+        .match(/^(\d+)\s+(hours?|days?|weeks?|months?)$/i);
+
+    if (!match) {
+        return { amount: '', unit: 'days' };
+    }
+
+    const noun = match[2].toLowerCase();
+    const unit: TimelineUnit = noun.startsWith('hour')
+        ? 'hours'
+        : noun.startsWith('week')
+          ? 'weeks'
+          : noun.startsWith('month')
+            ? 'months'
+            : 'days';
+
+    return { amount: match[1], unit };
+}

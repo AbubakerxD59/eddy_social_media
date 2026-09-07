@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { router, usePage } from '@inertiajs/vue3';
-import { Bell, BellOff, Bookmark, Ellipsis, Flag, Link, Trash2 } from '@lucide/vue';
+import { Bell, BellOff, Bookmark, Ellipsis, Flag, Link, Pencil, Trash2 } from '@lucide/vue';
 import { computed, ref, watch } from 'vue';
 import { Button } from '@/components/ui/button';
 import {
@@ -19,6 +19,7 @@ const { signal } = defineProps<{
 }>();
 
 const emit = defineEmits<{
+    edit: [];
     delete: [];
 }>();
 
@@ -204,9 +205,18 @@ const toggleMute = () => {
                 <BellOff v-else />
                 {{ authorMuted ? 'Unmute' : 'Mute' }}
             </DropdownMenuItem>
-            <template v-if="signal.can_delete">
+            <template v-if="signal.can_edit || signal.can_delete">
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
+                    v-if="signal.can_edit"
+                    class="rounded-[10px]"
+                    @click="emit('edit')"
+                >
+                    <Pencil />
+                    Edit
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                    v-if="signal.can_delete"
                     class="text-destructive focus:text-destructive rounded-[10px]"
                     @click="emit('delete')"
                 >

@@ -6,6 +6,7 @@ import FormattedBody from '@/components/FormattedBody.vue';
 import LinkPreviewCard from '@/components/LinkPreviewCard.vue';
 import MediaCarousel from '@/components/MediaCarousel.vue';
 import SignalActions from '@/components/SignalActions.vue';
+import SignalComposer from '@/components/SignalComposer.vue';
 import SignalDetails from '@/components/SignalDetails.vue';
 import SignalMoreMenu from '@/components/SignalMoreMenu.vue';
 import SignalPoll from '@/components/SignalPoll.vue';
@@ -24,6 +25,7 @@ const { signal, highlighted = false, variant = 'card' } = defineProps<{
 
 const article = ref<HTMLElement | null>(null);
 const confirmOpen = ref(false);
+const editing = ref(false);
 const deleting = ref(false);
 const mediaPage = ref(1);
 const mediaPages = computed(() => Math.max(1, Math.ceil(signal.media.length / 2)));
@@ -126,6 +128,7 @@ const remove = () => {
 
             <SignalMoreMenu
                 :signal="signal"
+                @edit="editing = true"
                 @delete="confirmOpen = true"
             />
         </div>
@@ -191,6 +194,13 @@ const remove = () => {
 
             <SignalActions :signal="signal" />
         </div>
+
+        <SignalComposer
+            v-if="editing"
+            :editing="signal"
+            @close="editing = false"
+            @created="editing = false"
+        />
 
         <ConfirmDeleteDialog
             v-if="signal.can_delete"

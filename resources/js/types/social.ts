@@ -64,6 +64,10 @@ export type FeedSignal = {
     media: SignalMedia[];
     author: PublicUser;
     created_at: string | null;
+    latitude: number | null;
+    longitude: number | null;
+    place_id: string | null;
+    can_edit: boolean;
     can_delete: boolean;
     can_mute: boolean;
     can_report: boolean;

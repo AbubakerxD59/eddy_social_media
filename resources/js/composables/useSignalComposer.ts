@@ -5,46 +5,59 @@ import { csrfHeaders } from '@/lib/csrf';
 import { htmlToPlainText } from '@/lib/htmlBody';
 import { notifyError, notifyFormError, notifySuccess } from '@/lib/notify';
 import { signalTypeMeta } from '@/lib/signalTypes';
-import { formatTimelineDuration, type TimelineUnit } from '@/lib/timeline';
-import type { SignalLink, SignalType } from '@/types/social';
+import { formatTimelineDuration, parseTimelineDuration } from '@/lib/timeline';
+import type { FeedSignal, SignalLink, SignalType } from '@/types/social';
 
 export type MediaKind = 'none' | 'files';
 
-export function useSignalComposer(options: { onSuccess?: () => void; parentId?: string; initialType?: SignalType } = {}) {
+const emptyPollOptions = (): string[] => ['', ''];
+
+const composerDefaults = (options: { parentId?: string; initialType?: SignalType; editing?: FeedSignal }) => {
+    const signal = options.editing;
+    const timeline = parseTimelineDuration(signal?.need?.timeline ?? signal?.opportunity?.timeline);
+    const pollOptions = signal?.poll?.options.map((option) => option.text) ?? emptyPollOptions();
+
+    return {
+        type: (signal?.type ?? options.initialType ?? 'drop') as SignalType,
+        parent_id: signal ? '' : (options.parentId ?? ''),
+        title: signal?.title ?? '',
+        body: signal?.body ?? '',
+        budget: signal?.need?.budget ?? '',
+        timeline: '',
+        timeline_amount: timeline.amount,
+        timeline_unit: timeline.unit,
+        location: signal?.need?.location ?? signal?.opportunity?.location ?? '',
+        latitude: signal?.latitude ?? null,
+        longitude: signal?.longitude ?? null,
+        place_id: signal?.place_id ?? '',
+        skills: signal?.need?.skills.join(', ') ?? '',
+        project_value: signal?.opportunity?.project_value ?? '',
+        trades: signal?.opportunity?.trades.join(', ') ?? '',
+        poll_options: pollOptions.length >= 2 ? pollOptions : [...pollOptions, ...emptyPollOptions()].slice(0, 2),
+        link_url: signal?.link?.url ?? '',
+        link_title: signal?.link?.title ?? '',
+        link_description: signal?.link?.description ?? '',
+        link_image: signal?.link?.image ?? '',
+        media_ids: [] as string[],
+    };
+};
+
+export function useSignalComposer(
+    options: { onSuccess?: () => void; parentId?: string; initialType?: SignalType; editing?: FeedSignal } = {},
+) {
     const user = computed(() => usePage().props.auth.user);
     const bodyEditor = ref<{ focus: () => void } | null>(null);
     const titleInput = ref<HTMLInputElement | null>(null);
     const previewing = ref(false);
-    const preview = ref<SignalLink | null>(null);
-    const previewSourceUrl = ref<string | null>(null);
+    const preview = ref<SignalLink | null>(options.editing?.link ?? null);
+    const previewSourceUrl = ref<string | null>(options.editing?.link?.url ?? null);
     const mediaKind = ref<MediaKind>('none');
     const mediaUploading = ref(false);
 
-    const form = useForm({
-        type: (options.initialType ?? 'drop') as SignalType,
-        parent_id: options.parentId ?? '',
-        title: '',
-        body: '',
-        budget: '',
-        timeline: '',
-        timeline_amount: '',
-        timeline_unit: 'days' as TimelineUnit,
-        location: '',
-        latitude: null as number | null,
-        longitude: null as number | null,
-        place_id: '',
-        skills: '',
-        project_value: '',
-        trades: '',
-        poll_options: ['', ''] as string[],
-        link_url: '',
-        link_title: '',
-        link_description: '',
-        link_image: '',
-        media_ids: [] as string[],
-    });
+    const form = useForm(composerDefaults(options));
 
-    const isReply = computed(() => Boolean(options.parentId));
+    const isEditing = computed(() => Boolean(options.editing));
+    const isReply = computed(() => Boolean(options.parentId) || Boolean(options.editing?.is_reply));
     const meta = computed(() => signalTypeMeta(form.type));
 
     const bodyText = computed(() => htmlToPlainText(form.body));
@@ -62,7 +75,12 @@ export function useSignalComposer(options: { onSuccess?: () => void; parentId?: 
             return bodyText.value.length > 0 && form.poll_options.filter((option) => option.trim()).length >= 2;
         }
 
-        return bodyText.value.length > 0 || form.media_ids.length > 0;
+        return (
+            bodyText.value.length > 0
+            || form.media_ids.length > 0
+            || Boolean(form.link_url)
+            || Boolean(options.editing?.media.length)
+        );
     });
 
     const detectedUrl = computed(
@@ -81,7 +99,13 @@ export function useSignalComposer(options: { onSuccess?: () => void; parentId?: 
         return meta.value.placeholder;
     });
 
-    const submitLabel = computed(() => (isReply.value ? 'Reply' : meta.value.submit));
+    const submitLabel = computed(() => {
+        if (isEditing.value) {
+            return 'Save';
+        }
+
+        return isReply.value ? 'Reply' : meta.value.submit;
+    });
 
     const focusBody = () => {
         void nextTick(() => bodyEditor.value?.focus());
@@ -140,7 +164,7 @@ export function useSignalComposer(options: { onSuccess?: () => void; parentId?: 
     };
 
     const setType = (type: SignalType) => {
-        if (isReply.value) {
+        if (isReply.value || isEditing.value) {
             return;
         }
 
@@ -219,14 +243,37 @@ export function useSignalComposer(options: { onSuccess?: () => void; parentId?: 
     };
 
     const resetComposer = () => {
+        const defaults = composerDefaults(options);
+
         form.reset();
-        form.type = 'drop';
-        form.parent_id = options.parentId ?? '';
-        form.poll_options = ['', ''];
+        form.type = defaults.type;
+        form.parent_id = defaults.parent_id;
+        form.title = defaults.title;
+        form.body = defaults.body;
+        form.budget = defaults.budget;
+        form.timeline_amount = defaults.timeline_amount;
+        form.timeline_unit = defaults.timeline_unit;
+        form.location = defaults.location;
+        form.latitude = defaults.latitude;
+        form.longitude = defaults.longitude;
+        form.place_id = defaults.place_id;
+        form.skills = defaults.skills;
+        form.project_value = defaults.project_value;
+        form.trades = defaults.trades;
+        form.poll_options = [...defaults.poll_options];
+        form.link_url = defaults.link_url;
+        form.link_title = defaults.link_title;
+        form.link_description = defaults.link_description;
+        form.link_image = defaults.link_image;
         form.media_ids = [];
         mediaKind.value = 'none';
         mediaUploading.value = false;
-        clearLink();
+        preview.value = options.editing?.link ?? null;
+        previewSourceUrl.value = options.editing?.link?.url ?? null;
+
+        if (!options.editing?.link) {
+            clearLink();
+        }
     };
 
     const submit = () => {
@@ -234,7 +281,7 @@ export function useSignalComposer(options: { onSuccess?: () => void; parentId?: 
             return;
         }
 
-        form.transform((data) => {
+        const visit = form.transform((data) => {
             const isDrop = data.type === 'drop';
             const hasPlace = data.type === 'need' || data.type === 'opportunity';
             const linkUrl = isDrop ? (data.link_url || detectedUrl.value || '') : '';
@@ -253,15 +300,24 @@ export function useSignalComposer(options: { onSuccess?: () => void; parentId?: 
                 longitude: hasPlace ? data.longitude : null,
                 place_id: hasPlace ? data.place_id : '',
             };
-        }).post('/signals', {
+        });
+
+        const visitOptions = {
             preserveScroll: true,
             onSuccess: () => {
                 resetComposer();
                 options.onSuccess?.();
             },
-            onError: (errors) => notifyFormError(errors),
+            onError: (errors: Record<string, string>) => notifyFormError(errors),
             onFinish: () => form.transform((data) => data),
-        });
+        };
+
+        if (options.editing) {
+            visit.patch(`/signals/${options.editing.id}`, visitOptions);
+            return;
+        }
+
+        visit.post('/signals', visitOptions);
     };
 
     return {
@@ -274,6 +330,7 @@ export function useSignalComposer(options: { onSuccess?: () => void; parentId?: 
         mediaKind,
         mediaUploading,
         isReply,
+        isEditing,
         meta,
         canSubmit,
         showLinkPreviewButton,

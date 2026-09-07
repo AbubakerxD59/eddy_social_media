@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Enums\MediaType;
 use App\Enums\SignalType;
 use App\Http\Requests\StoreSignalRequest;
+use App\Http\Requests\UpdateSignalRequest;
 use App\Http\Requests\VotePollRequest;
 use App\Models\Signal;
 use App\Models\SignalMedia;
@@ -79,6 +80,38 @@ class SignalController extends Controller
         }
 
         return to_route('dashboard', ['highlight' => $signal->public_id]);
+    }
+
+    public function update(UpdateSignalRequest $request, Signal $signal, LinkPreviewService $previews, GooglePlacesService $places): RedirectResponse
+    {
+        abort_unless($signal->user_id === auth()->id(), 403);
+
+        $type = $signal->type;
+
+        DB::transaction(function () use ($request, $signal, $type, $previews, $places): void {
+            $link = $this->linkPayload($request, $type, $previews);
+            $place = $this->placePayload($request, $type, $places);
+
+            $signal->update([
+                'title' => $this->titleFor($request, $type),
+                'body' => $request->validated('body'),
+                'payload' => $this->payloadFor($request, $type, $place['location'], $signal),
+                'latitude' => $place['latitude'],
+                'longitude' => $place['longitude'],
+                'place_id' => $place['place_id'],
+                ...$link,
+            ]);
+
+            $this->storeMedia($signal, $type, $request->file('media', []));
+            $this->attachUploads($signal, $type, $request->validated('media_ids', []));
+        });
+
+        Inertia::flash('toast', [
+            'type' => 'success',
+            'message' => __($type->updatedMessage()),
+        ]);
+
+        return back();
     }
 
     public function like(Signal $signal): JsonResponse
@@ -200,7 +233,7 @@ class SignalController extends Controller
     /**
      * @return array<string, mixed>|null
      */
-    private function payloadFor(StoreSignalRequest $request, SignalType $type, ?string $location): ?array
+    private function payloadFor(StoreSignalRequest $request, SignalType $type, ?string $location, ?Signal $existing = null): ?array
     {
         $payload = match ($type) {
             SignalType::Need => array_filter([
@@ -216,19 +249,38 @@ class SignalController extends Controller
                 'trades' => $request->csvList('trades'),
             ]),
             SignalType::Poll => [
-                'options' => array_map(
-                    fn (string $text, int $index): array => [
-                        'id' => (string) ($index + 1),
-                        'text' => $text,
-                    ],
-                    $request->pollOptions(),
-                    array_keys($request->pollOptions()),
-                ),
+                'options' => $this->pollOptionsPayload($request, $existing),
             ],
             SignalType::Drop => [],
         };
 
         return $payload === [] ? null : $payload;
+    }
+
+    /**
+     * @return list<array{id: string, text: string}>
+     */
+    private function pollOptionsPayload(StoreSignalRequest $request, ?Signal $existing): array
+    {
+        $existingOptions = is_array($existing?->payload['options'] ?? null)
+            ? array_values($existing->payload['options'])
+            : [];
+
+        return array_map(
+            function (string $text, int $index) use ($existingOptions): array {
+                $previous = $existingOptions[$index] ?? null;
+                $id = is_array($previous) && isset($previous['id'])
+                    ? (string) $previous['id']
+                    : (string) ($index + 1);
+
+                return [
+                    'id' => $id,
+                    'text' => $text,
+                ];
+            },
+            $request->pollOptions(),
+            array_keys($request->pollOptions()),
+        );
     }
 
     /**

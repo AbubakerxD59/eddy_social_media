@@ -38,4 +38,14 @@ enum SignalType: string
             self::Poll => 'Your poll is live.',
         };
     }
+
+    public function updatedMessage(): string
+    {
+        return match ($this) {
+            self::Drop => 'Your drop was updated.',
+            self::Need => 'Your need was updated.',
+            self::Opportunity => 'Your opportunity was updated.',
+            self::Poll => 'Your poll was updated.',
+        };
+    }
 }
