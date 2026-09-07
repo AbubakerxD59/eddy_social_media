@@ -89,7 +89,7 @@ test('autocomplete uses establishment and geocode types', function () {
     });
 });
 
-test('nearby autocomplete biases results within 1000 km', function () {
+test('nearby autocomplete biases results within 100 km', function () {
     config(['services.google.places_key' => 'test-key']);
 
     Http::fake(fn () => Http::response(['status' => 'ZERO_RESULTS', 'predictions' => []]));
@@ -114,7 +114,7 @@ test('nearby autocomplete biases results within 1000 km', function () {
         return ($query['input'] ?? null) === 'Giga mall'
             && ($query['types'] ?? null) === 'establishment|geocode'
             && ($query['location'] ?? null) === '33.69,73.02'
-            && (int) ($query['radius'] ?? 0) === 1_000_000;
+            && (int) ($query['radius'] ?? 0) === 100_000;
     });
 });
 

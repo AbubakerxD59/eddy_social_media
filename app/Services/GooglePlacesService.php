@@ -19,7 +19,7 @@ class GooglePlacesService
     /**
      * Nearby bias in meters. Legacy Autocomplete treats this as a bias, not a hard fence.
      */
-    private const LOCATION_BIAS_RADIUS_METERS = 1_000_000;
+    private const LOCATION_BIAS_RADIUS_METERS = 100_000;
 
     /**
      * @param  array{0: float, 1: float}|null  $origin
