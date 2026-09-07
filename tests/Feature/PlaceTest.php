@@ -87,12 +87,12 @@ test('region autocomplete searches google without a local bias', function () {
         $body = $request->data();
 
         return ($body['input'] ?? null) === 'London'
-            && ($body['includedPrimaryTypes'] ?? null) === ['(regions)']
+            && ($body['includedPrimaryTypes'] ?? null) === ['(cities)']
             && ! isset($body['locationBias']);
     });
 });
 
-test('nearby autocomplete biases within the places api radius limit', function () {
+test('nearby autocomplete biases results within 1000 km', function () {
     config(['services.google.places_key' => 'test-key']);
 
     Http::fake(fn () => Http::response(['suggestions' => []]));
@@ -113,16 +113,19 @@ test('nearby autocomplete biases within the places api radius limit', function (
         }
 
         $body = $request->data();
-        $radius = $body['locationBias']['circle']['radius'] ?? null;
+        $lowLat = $body['locationBias']['rectangle']['low']['latitude'] ?? null;
+        $highLat = $body['locationBias']['rectangle']['high']['latitude'] ?? null;
+
+        if (! is_numeric($lowLat) || ! is_numeric($highLat)) {
+            return false;
+        }
+
+        $spanKm = ((float) $highLat - (float) $lowLat) * 111.32;
 
         return ($body['input'] ?? null) === 'Orlando'
-            && ($body['origin']['latitude'] ?? null) === 28.54
-            && ($body['origin']['longitude'] ?? null) === -81.38
-            && ($body['locationBias']['circle']['center']['latitude'] ?? null) === 28.54
-            && ($body['locationBias']['circle']['center']['longitude'] ?? null) === -81.38
-            && is_numeric($radius)
-            && $radius > 0
-            && $radius <= 50000;
+            && ! isset($body['locationBias']['circle'])
+            && $spanKm > 1900
+            && $spanKm < 2100;
     });
 });
 

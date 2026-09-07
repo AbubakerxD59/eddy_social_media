@@ -10,19 +10,20 @@ class GooglePlacesService
     private const AUTOCOMPLETE_URL = 'https://places.googleapis.com/v1/places:autocomplete';
 
     /**
-     * Autocomplete (New) rejects Table B types as includedPrimaryTypes.
-     * Use the `(regions)` collection so cities, states, and countries are returned.
+     * Autocomplete (New) city collection. Table B types like `locality` return no predictions.
      *
      * @var list<string>
      */
     public const REGION_TYPES = [
-        '(regions)',
+        '(cities)',
     ];
 
     /**
-     * Autocomplete (New) circle bias must be 0–50,000 meters.
+     * Nearby ranking uses a viewport, not a circle: Autocomplete (New) circles max out at 50 km.
      */
-    private const LOCATION_BIAS_RADIUS_METERS = 50000.0;
+    private const LOCATION_BIAS_RADIUS_KM = 1000.0;
+
+    private const KM_PER_DEGREE_LATITUDE = 111.32;
 
     /**
      * @param  array{0: float, 1: float}|null  $origin
@@ -46,19 +47,7 @@ class GooglePlacesService
         ]);
 
         if ($origin !== null) {
-            $body['origin'] = [
-                'latitude' => $origin[0],
-                'longitude' => $origin[1],
-            ];
-            $body['locationBias'] = [
-                'circle' => [
-                    'center' => [
-                        'latitude' => $origin[0],
-                        'longitude' => $origin[1],
-                    ],
-                    'radius' => self::LOCATION_BIAS_RADIUS_METERS,
-                ],
-            ];
+            $body['locationBias'] = $this->locationBias($origin);
         }
 
         try {
@@ -67,7 +56,7 @@ class GooglePlacesService
                 ->withHeaders([
                     'Content-Type' => 'application/json',
                     'X-Goog-Api-Key' => $key,
-                    'X-Goog-FieldMask' => 'suggestions.placePrediction.placeId,suggestions.placePrediction.text,suggestions.placePrediction.structuredFormat',
+                    'X-Goog-FieldMask' => 'suggestions.placePrediction.placeId,suggestions.placePrediction.place,suggestions.placePrediction.text,suggestions.placePrediction.structuredFormat',
                 ])
                 ->post(self::AUTOCOMPLETE_URL, $body);
         } catch (Throwable) {
@@ -87,7 +76,13 @@ class GooglePlacesService
 
             $prediction = $suggestion['placePrediction'] ?? null;
 
-            if (! is_array($prediction) || blank($prediction['placeId'] ?? null)) {
+            if (! is_array($prediction)) {
+                continue;
+            }
+
+            $placeId = $this->normalizePlaceId((string) ($prediction['placeId'] ?? $prediction['place'] ?? ''));
+
+            if ($placeId === '') {
                 continue;
             }
 
@@ -106,10 +101,10 @@ class GooglePlacesService
 
             $label = is_string($main) && $main !== ''
                 ? $main
-                : (is_string($text) && $text !== '' ? $text : (string) $prediction['placeId']);
+                : (is_string($text) && $text !== '' ? $text : $placeId);
 
             $suggestions[] = [
-                'place_id' => (string) $prediction['placeId'],
+                'place_id' => $placeId,
                 'label' => $label,
                 'description' => is_string($secondary) && $secondary !== '' ? $secondary : null,
             ];
@@ -181,6 +176,44 @@ class GooglePlacesService
         }
 
         return $placeId;
+    }
+
+    /**
+     * @param  array{0: float, 1: float}  $origin
+     * @return array{rectangle: array{low: array{latitude: float, longitude: float}, high: array{latitude: float, longitude: float}}}
+     */
+    private function locationBias(array $origin): array
+    {
+        [$latitude, $longitude] = $origin;
+        $latDelta = self::LOCATION_BIAS_RADIUS_KM / self::KM_PER_DEGREE_LATITUDE;
+        $cosLatitude = cos(deg2rad($latitude));
+        $lngDelta = abs($cosLatitude) < 0.01
+            ? 180.0
+            : min(180.0, self::LOCATION_BIAS_RADIUS_KM / (self::KM_PER_DEGREE_LATITUDE * abs($cosLatitude)));
+
+        return [
+            'rectangle' => [
+                'low' => [
+                    'latitude' => max(-90.0, $latitude - $latDelta),
+                    'longitude' => $this->normalizeLongitude($longitude - $lngDelta),
+                ],
+                'high' => [
+                    'latitude' => min(90.0, $latitude + $latDelta),
+                    'longitude' => $this->normalizeLongitude($longitude + $lngDelta),
+                ],
+            ],
+        ];
+    }
+
+    private function normalizeLongitude(float $longitude): float
+    {
+        $longitude = fmod($longitude + 180.0, 360.0);
+
+        if ($longitude < 0) {
+            $longitude += 360.0;
+        }
+
+        return $longitude - 180.0;
     }
 
     private function apiKey(): ?string
