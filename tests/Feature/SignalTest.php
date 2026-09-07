@@ -578,11 +578,17 @@ test('needs store coordinates from a selected google place', function () {
     config(['services.google.places_key' => 'test-key']);
 
     Http::fake(fn () => Http::response([
-        'id' => 'ChIJN1t_tDeuEmsRUsoyG83frY4',
-        'formattedAddress' => 'Orlando, FL, USA',
-        'location' => [
-            'latitude' => 28.5383355,
-            'longitude' => -81.3792365,
+        'status' => 'OK',
+        'result' => [
+            'place_id' => 'ChIJN1t_tDeuEmsRUsoyG83frY4',
+            'name' => 'Orlando',
+            'formatted_address' => 'Orlando, FL, USA',
+            'geometry' => [
+                'location' => [
+                    'lat' => 28.5383355,
+                    'lng' => -81.3792365,
+                ],
+            ],
         ],
     ]));
 

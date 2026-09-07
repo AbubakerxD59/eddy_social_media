@@ -7,30 +7,26 @@ use Throwable;
 
 class GooglePlacesService
 {
-    private const AUTOCOMPLETE_URL = 'https://places.googleapis.com/v1/places:autocomplete';
+    private const AUTOCOMPLETE_URL = 'https://maps.googleapis.com/maps/api/place/autocomplete/json';
+
+    private const DETAILS_URL = 'https://maps.googleapis.com/maps/api/place/details/json';
 
     /**
-     * Autocomplete (New) city collection. Table B types like `locality` return no predictions.
-     *
-     * @var list<string>
+     * Same mix as the working Places Autocomplete integration: businesses and addresses.
      */
-    public const REGION_TYPES = [
-        '(cities)',
-    ];
+    public const SEARCH_TYPES = 'establishment|geocode';
 
     /**
-     * Nearby ranking uses a viewport, not a circle: Autocomplete (New) circles max out at 50 km.
+     * Nearby bias in meters. Legacy Autocomplete treats this as a bias, not a hard fence.
      */
-    private const LOCATION_BIAS_RADIUS_KM = 1000.0;
-
-    private const KM_PER_DEGREE_LATITUDE = 111.32;
+    private const LOCATION_BIAS_RADIUS_METERS = 1_000_000;
 
     /**
      * @param  array{0: float, 1: float}|null  $origin
-     * @param  list<string>|null  $includedPrimaryTypes
+     * @param  list<string>|string|null  $includedPrimaryTypes
      * @return list<array{place_id: string, label: string, description: string|null}>
      */
-    public function autocomplete(string $input, ?string $sessionToken = null, ?array $origin = null, ?array $includedPrimaryTypes = null): array
+    public function autocomplete(string $input, ?string $sessionToken = null, ?array $origin = null, array|string|null $includedPrimaryTypes = null): array
     {
         $key = $this->apiKey();
         $input = trim($input);
@@ -39,69 +35,54 @@ class GooglePlacesService
             return [];
         }
 
-        $body = array_filter([
+        $query = array_filter([
             'input' => $input,
-            'languageCode' => 'en',
-            'sessionToken' => $sessionToken,
-            'includedPrimaryTypes' => $includedPrimaryTypes ?: null,
-        ]);
+            'key' => $key,
+            'language' => 'en',
+            'types' => $this->autocompleteTypes($includedPrimaryTypes),
+            'sessiontoken' => $sessionToken,
+        ], fn ($value) => $value !== null && $value !== '');
 
         if ($origin !== null) {
-            $body['locationBias'] = $this->locationBias($origin);
+            $query['location'] = $origin[0].','.$origin[1];
+            $query['radius'] = self::LOCATION_BIAS_RADIUS_METERS;
         }
 
         try {
             $response = Http::timeout(6)
                 ->connectTimeout(4)
-                ->withHeaders([
-                    'Content-Type' => 'application/json',
-                    'X-Goog-Api-Key' => $key,
-                    'X-Goog-FieldMask' => 'suggestions.placePrediction.placeId,suggestions.placePrediction.place,suggestions.placePrediction.text,suggestions.placePrediction.structuredFormat',
-                ])
-                ->post(self::AUTOCOMPLETE_URL, $body);
+                ->get(self::AUTOCOMPLETE_URL, $query);
         } catch (Throwable) {
             return [];
         }
 
-        if (! $response->successful()) {
+        if (! $response->successful() || $response->json('status') !== 'OK') {
             return [];
         }
 
         $suggestions = [];
 
-        foreach ($response->json('suggestions', []) as $suggestion) {
-            if (! is_array($suggestion)) {
-                continue;
-            }
-
-            $prediction = $suggestion['placePrediction'] ?? null;
-
+        foreach ($response->json('predictions', []) as $prediction) {
             if (! is_array($prediction)) {
                 continue;
             }
 
-            $placeId = $this->normalizePlaceId((string) ($prediction['placeId'] ?? $prediction['place'] ?? ''));
+            $placeId = $this->normalizePlaceId((string) ($prediction['place_id'] ?? ''));
 
             if ($placeId === '') {
                 continue;
             }
 
-            $structured = is_array($prediction['structuredFormat'] ?? null)
-                ? $prediction['structuredFormat']
+            $structured = is_array($prediction['structured_formatting'] ?? null)
+                ? $prediction['structured_formatting']
                 : [];
-            $main = is_array($structured['mainText'] ?? null)
-                ? ($structured['mainText']['text'] ?? null)
-                : null;
-            $secondary = is_array($structured['secondaryText'] ?? null)
-                ? ($structured['secondaryText']['text'] ?? null)
-                : null;
-            $text = is_array($prediction['text'] ?? null)
-                ? ($prediction['text']['text'] ?? null)
-                : null;
+            $main = $structured['main_text'] ?? null;
+            $secondary = $structured['secondary_text'] ?? null;
+            $description = $prediction['description'] ?? null;
 
             $label = is_string($main) && $main !== ''
                 ? $main
-                : (is_string($text) && $text !== '' ? $text : $placeId);
+                : (is_string($description) && $description !== '' ? $description : $placeId);
 
             $suggestions[] = [
                 'place_id' => $placeId,
@@ -128,39 +109,45 @@ class GooglePlacesService
         try {
             $response = Http::timeout(6)
                 ->connectTimeout(4)
-                ->withHeaders([
-                    'X-Goog-Api-Key' => $key,
-                    'X-Goog-FieldMask' => 'id,formattedAddress,displayName,location',
-                ])
-                ->get('https://places.googleapis.com/v1/places/'.$placeId, array_filter([
-                    'languageCode' => 'en',
-                    'sessionToken' => $sessionToken,
-                ]));
+                ->get(self::DETAILS_URL, array_filter([
+                    'place_id' => $placeId,
+                    'key' => $key,
+                    'language' => 'en',
+                    'fields' => 'place_id,name,formatted_address,geometry',
+                    'sessiontoken' => $sessionToken,
+                ], fn ($value) => $value !== null && $value !== ''));
         } catch (Throwable) {
             return null;
         }
 
-        if (! $response->successful()) {
+        if (! $response->successful() || $response->json('status') !== 'OK') {
             return null;
         }
 
-        $location = $response->json('location');
-        $latitude = is_array($location) ? ($location['latitude'] ?? null) : null;
-        $longitude = is_array($location) ? ($location['longitude'] ?? null) : null;
+        $result = $response->json('result');
+
+        if (! is_array($result)) {
+            return null;
+        }
+
+        $location = is_array($result['geometry'] ?? null)
+            ? ($result['geometry']['location'] ?? null)
+            : null;
+        $latitude = is_array($location) ? ($location['lat'] ?? null) : null;
+        $longitude = is_array($location) ? ($location['lng'] ?? null) : null;
 
         if (! is_numeric($latitude) || ! is_numeric($longitude)) {
             return null;
         }
 
-        $displayName = $response->json('displayName');
-        $formatted = $response->json('formattedAddress');
-        $fallback = is_array($displayName) ? ($displayName['text'] ?? null) : null;
+        $formatted = $result['formatted_address'] ?? null;
+        $name = $result['name'] ?? null;
         $label = is_string($formatted) && $formatted !== ''
             ? $formatted
-            : (is_string($fallback) && $fallback !== '' ? $fallback : $placeId);
+            : (is_string($name) && $name !== '' ? $name : $placeId);
 
         return [
-            'place_id' => (string) ($response->json('id') ?: $placeId),
+            'place_id' => (string) ($result['place_id'] ?? $placeId),
             'label' => $label,
             'latitude' => (float) $latitude,
             'longitude' => (float) $longitude,
@@ -179,41 +166,19 @@ class GooglePlacesService
     }
 
     /**
-     * @param  array{0: float, 1: float}  $origin
-     * @return array{rectangle: array{low: array{latitude: float, longitude: float}, high: array{latitude: float, longitude: float}}}
+     * @param  list<string>|string|null  $types
      */
-    private function locationBias(array $origin): array
+    private function autocompleteTypes(array|string|null $types): string
     {
-        [$latitude, $longitude] = $origin;
-        $latDelta = self::LOCATION_BIAS_RADIUS_KM / self::KM_PER_DEGREE_LATITUDE;
-        $cosLatitude = cos(deg2rad($latitude));
-        $lngDelta = abs($cosLatitude) < 0.01
-            ? 180.0
-            : min(180.0, self::LOCATION_BIAS_RADIUS_KM / (self::KM_PER_DEGREE_LATITUDE * abs($cosLatitude)));
-
-        return [
-            'rectangle' => [
-                'low' => [
-                    'latitude' => max(-90.0, $latitude - $latDelta),
-                    'longitude' => $this->normalizeLongitude($longitude - $lngDelta),
-                ],
-                'high' => [
-                    'latitude' => min(90.0, $latitude + $latDelta),
-                    'longitude' => $this->normalizeLongitude($longitude + $lngDelta),
-                ],
-            ],
-        ];
-    }
-
-    private function normalizeLongitude(float $longitude): float
-    {
-        $longitude = fmod($longitude + 180.0, 360.0);
-
-        if ($longitude < 0) {
-            $longitude += 360.0;
+        if (is_string($types) && $types !== '') {
+            return $types;
         }
 
-        return $longitude - 180.0;
+        if (is_array($types) && $types !== []) {
+            return implode('|', $types);
+        }
+
+        return self::SEARCH_TYPES;
     }
 
     private function apiKey(): ?string

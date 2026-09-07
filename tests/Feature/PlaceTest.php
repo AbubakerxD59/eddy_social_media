@@ -35,15 +35,14 @@ test('authenticated users receive google place suggestions', function () {
 
     Http::fake(function () {
         return Http::response([
-            'suggestions' => [
+            'status' => 'OK',
+            'predictions' => [
                 [
-                    'placePrediction' => [
-                        'placeId' => 'ChIJN1t_tDeuEmsRUsoyG83frY4',
-                        'text' => ['text' => 'Orlando, FL, USA'],
-                        'structuredFormat' => [
-                            'mainText' => ['text' => 'Orlando'],
-                            'secondaryText' => ['text' => 'FL, USA'],
-                        ],
+                    'place_id' => 'ChIJN1t_tDeuEmsRUsoyG83frY4',
+                    'description' => 'Giga Mall, Islamabad, Pakistan',
+                    'structured_formatting' => [
+                        'main_text' => 'Giga Mall',
+                        'secondary_text' => 'Islamabad, Pakistan',
                     ],
                 ],
             ],
@@ -54,78 +53,68 @@ test('authenticated users receive google place suggestions', function () {
 
     $this->actingAs($user)
         ->postJson(route('places.autocomplete'), [
-            'input' => 'Orlando',
+            'input' => 'Giga mall',
         ])
         ->assertOk()
         ->assertJsonPath('suggestions.0.place_id', 'ChIJN1t_tDeuEmsRUsoyG83frY4')
-        ->assertJsonPath('suggestions.0.label', 'Orlando')
-        ->assertJsonPath('suggestions.0.description', 'FL, USA');
+        ->assertJsonPath('suggestions.0.label', 'Giga Mall')
+        ->assertJsonPath('suggestions.0.description', 'Islamabad, Pakistan');
 });
 
-test('region autocomplete searches google without a local bias', function () {
+test('autocomplete uses establishment and geocode types', function () {
     config(['services.google.places_key' => 'test-key']);
 
-    Http::fake(fn () => Http::response(['suggestions' => []]));
+    Http::fake(fn () => Http::response(['status' => 'ZERO_RESULTS', 'predictions' => []]));
 
-    $user = User::factory()->create([
-        'latitude' => 28.54,
-        'longitude' => -81.38,
-    ]);
+    $user = User::factory()->create();
 
     $this->actingAs($user)
         ->postJson(route('places.autocomplete'), [
-            'input' => 'London',
+            'input' => 'Giga mall',
             'scope' => 'regions',
         ])
         ->assertOk();
 
     Http::assertSent(function ($request): bool {
-        if (! str_contains($request->url(), 'places:autocomplete')) {
+        if (! str_contains($request->url(), 'maps.googleapis.com/maps/api/place/autocomplete/json')) {
             return false;
         }
 
-        $body = $request->data();
+        $query = $request->data();
 
-        return ($body['input'] ?? null) === 'London'
-            && ($body['includedPrimaryTypes'] ?? null) === ['(cities)']
-            && ! isset($body['locationBias']);
+        return ($query['input'] ?? null) === 'Giga mall'
+            && ($query['types'] ?? null) === 'establishment|geocode'
+            && ($query['key'] ?? null) === 'test-key'
+            && ! isset($query['location']);
     });
 });
 
 test('nearby autocomplete biases results within 1000 km', function () {
     config(['services.google.places_key' => 'test-key']);
 
-    Http::fake(fn () => Http::response(['suggestions' => []]));
+    Http::fake(fn () => Http::response(['status' => 'ZERO_RESULTS', 'predictions' => []]));
 
     $user = User::factory()->create();
 
     $this->actingAs($user)
         ->postJson(route('places.autocomplete'), [
-            'input' => 'Orlando',
-            'latitude' => 28.54,
-            'longitude' => -81.38,
+            'input' => 'Giga mall',
+            'latitude' => 33.69,
+            'longitude' => 73.02,
         ])
         ->assertOk();
 
     Http::assertSent(function ($request): bool {
-        if (! str_contains($request->url(), 'places:autocomplete')) {
+        if (! str_contains($request->url(), 'maps.googleapis.com/maps/api/place/autocomplete/json')) {
             return false;
         }
 
-        $body = $request->data();
-        $lowLat = $body['locationBias']['rectangle']['low']['latitude'] ?? null;
-        $highLat = $body['locationBias']['rectangle']['high']['latitude'] ?? null;
+        $query = $request->data();
 
-        if (! is_numeric($lowLat) || ! is_numeric($highLat)) {
-            return false;
-        }
-
-        $spanKm = ((float) $highLat - (float) $lowLat) * 111.32;
-
-        return ($body['input'] ?? null) === 'Orlando'
-            && ! isset($body['locationBias']['circle'])
-            && $spanKm > 1900
-            && $spanKm < 2100;
+        return ($query['input'] ?? null) === 'Giga mall'
+            && ($query['types'] ?? null) === 'establishment|geocode'
+            && ($query['location'] ?? null) === '33.69,73.02'
+            && (int) ($query['radius'] ?? 0) === 1_000_000;
     });
 });
 
@@ -134,11 +123,17 @@ test('authenticated users can resolve a google place', function () {
 
     Http::fake(function () {
         return Http::response([
-            'id' => 'ChIJN1t_tDeuEmsRUsoyG83frY4',
-            'formattedAddress' => 'Orlando, FL, USA',
-            'location' => [
-                'latitude' => 28.5383355,
-                'longitude' => -81.3792365,
+            'status' => 'OK',
+            'result' => [
+                'place_id' => 'ChIJN1t_tDeuEmsRUsoyG83frY4',
+                'name' => 'Giga Mall',
+                'formatted_address' => 'Giga Mall, Islamabad, Pakistan',
+                'geometry' => [
+                    'location' => [
+                        'lat' => 33.6928,
+                        'lng' => 73.0213,
+                    ],
+                ],
             ],
         ]);
     });
@@ -149,15 +144,15 @@ test('authenticated users can resolve a google place', function () {
         ->getJson(route('places.show', 'ChIJN1t_tDeuEmsRUsoyG83frY4'))
         ->assertOk()
         ->assertJsonPath('place_id', 'ChIJN1t_tDeuEmsRUsoyG83frY4')
-        ->assertJsonPath('label', 'Orlando, FL, USA')
-        ->assertJsonPath('latitude', 28.5383355)
-        ->assertJsonPath('longitude', -81.3792365);
+        ->assertJsonPath('label', 'Giga Mall, Islamabad, Pakistan')
+        ->assertJsonPath('latitude', 33.6928)
+        ->assertJsonPath('longitude', 73.0213);
 });
 
 test('place details return not found when google has no result', function () {
     config(['services.google.places_key' => 'test-key']);
 
-    Http::fake(fn () => Http::response(['error' => 'not found'], 404));
+    Http::fake(fn () => Http::response(['status' => 'NOT_FOUND', 'error_message' => 'not found']));
 
     $user = User::factory()->create();
 

@@ -22,16 +22,11 @@ class PlaceController extends Controller
             ? [(float) $validated['latitude'], (float) $validated['longitude']]
             : null;
 
-        $types = ($validated['scope'] ?? null) === 'regions'
-            ? GooglePlacesService::REGION_TYPES
-            : null;
-
         return response()->json([
             'suggestions' => $places->autocomplete(
                 $validated['input'],
                 $validated['session_token'] ?? null,
                 $origin,
-                $types,
             ),
         ]);
     }
