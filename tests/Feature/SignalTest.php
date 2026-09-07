@@ -616,13 +616,16 @@ test('needs store coordinates from a selected google place', function () {
 test('the feed ranks nearby signals first when a location is provided', function () {
     $user = User::factory()->create();
 
-    $far = Signal::factory()->for($user)->need()->at(40.7128, -74.006, 'New York, NY')->create([
+    Signal::factory()->for($user)->need()->at(40.7128, -74.006, 'New York, NY')->create([
         'created_at' => now(),
     ]);
     $near = Signal::factory()->for($user)->need()->at(28.5383, -81.3792, 'Orlando, FL')->create([
         'created_at' => now()->subHour(),
     ]);
-    $unlocated = Signal::factory()->for($user)->drop()->create([
+    $withinRadius = Signal::factory()->for($user)->need()->at(27.9506, -82.4572, 'Tampa, FL')->create([
+        'created_at' => now()->subMinutes(30),
+    ]);
+    Signal::factory()->for($user)->drop()->create([
         'created_at' => now()->addMinute(),
     ]);
 
@@ -633,10 +636,9 @@ test('the feed ranks nearby signals first when a location is provided', function
             ->where('viewerLatitude', 28.54)
             ->where('viewerLongitude', -81.38)
             ->loadDeferredProps('feed', fn ($page) => $page
-                ->has('signals.data', 3)
+                ->has('signals.data', 2)
                 ->where('signals.data.0.id', $near->public_id)
-                ->where('signals.data.1.id', $far->public_id)
-                ->where('signals.data.2.id', $unlocated->public_id)));
+                ->where('signals.data.1.id', $withinRadius->public_id)));
 });
 
 test('users can publish a poll', function () {

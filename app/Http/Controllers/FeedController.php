@@ -19,6 +19,12 @@ class FeedController extends Controller
 {
     public const PAGE_SIZE = 20;
 
+    public const INITIAL_RADIUS_KM = 250;
+
+    public const MAX_RADIUS_KM = 20_037;
+
+    private const KM_PER_DEGREE = 111.045;
+
     public function __invoke(Request $request): Response
     {
         $filter = self::feedFilter($request);
@@ -160,6 +166,13 @@ class FeedController extends Controller
         $origin = $userId === null ? self::viewerOrigin($request) : null;
 
         if ($origin !== null) {
+            $radiusKm = self::resolvedRadiusKm(
+                self::geoFeedQuery($type, $userId),
+                $origin['latitude'],
+                $origin['longitude'],
+            );
+
+            self::applyRadiusFilter($query, $origin['latitude'], $origin['longitude'], $radiusKm);
             self::applyDistanceOrder($query, $origin['latitude'], $origin['longitude']);
         } else {
             $query->latest();
@@ -355,17 +368,114 @@ class FeedController extends Controller
 
     /**
      * @param  Builder<Signal>  $query
+     */
+    public static function resolvedRadiusKm(Builder $query, float $latitude, float $longitude): int
+    {
+        $radius = self::INITIAL_RADIUS_KM;
+
+        while ($radius < self::MAX_RADIUS_KM) {
+            if (self::existsWithinRadius($query, $latitude, $longitude, $radius)) {
+                return $radius;
+            }
+
+            $radius = min($radius * 2, self::MAX_RADIUS_KM);
+        }
+
+        return $radius;
+    }
+
+    /**
+     * @param  Builder<Signal>  $query
+     * @return Builder<Signal>
+     */
+    public static function applyRadiusFilter(Builder $query, float $latitude, float $longitude, int $radiusKm): Builder
+    {
+        [$sql, $bindings] = self::distanceKmSquaredExpression($latitude, $longitude);
+
+        $cosLat = cos(deg2rad($latitude));
+        $latDelta = $radiusKm / self::KM_PER_DEGREE;
+        $lngDelta = abs($cosLat) > 0.000001
+            ? $radiusKm / (self::KM_PER_DEGREE * abs($cosLat))
+            : 180.0;
+
+        return $query
+            ->whereNotNull('latitude')
+            ->whereNotNull('longitude')
+            ->whereBetween('latitude', [
+                max(-90.0, $latitude - $latDelta),
+                min(90.0, $latitude + $latDelta),
+            ])
+            ->whereBetween('longitude', [
+                max(-180.0, $longitude - $lngDelta),
+                min(180.0, $longitude + $lngDelta),
+            ])
+            ->whereRaw($sql.' <= ?', [...$bindings, $radiusKm * $radiusKm]);
+    }
+
+    /**
+     * @param  Builder<Signal>  $query
      * @return Builder<Signal>
      */
     public static function applyDistanceOrder(Builder $query, float $latitude, float $longitude): Builder
     {
+        [$sql, $bindings] = self::distanceKmSquaredExpression($latitude, $longitude);
+
         return $query
             ->orderByRaw('CASE WHEN latitude IS NULL OR longitude IS NULL THEN 1 ELSE 0 END')
-            ->orderByRaw(
-                '(latitude - ?) * (latitude - ?) + (longitude - ?) * (longitude - ?)',
-                [$latitude, $latitude, $longitude, $longitude],
-            )
+            ->orderByRaw($sql, $bindings)
             ->orderByDesc('created_at');
+    }
+
+    /**
+     * @param  Builder<Signal>  $query
+     */
+    private static function existsWithinRadius(Builder $query, float $latitude, float $longitude, int $radiusKm): bool
+    {
+        return self::applyRadiusFilter(
+            (clone $query)->reorder(),
+            $latitude,
+            $longitude,
+            $radiusKm,
+        )->exists();
+    }
+
+    /**
+     * @return Builder<Signal>
+     */
+    private static function geoFeedQuery(?SignalType $type = null, ?int $userId = null): Builder
+    {
+        $query = self::excludeMutedAuthors(Signal::query())->roots();
+
+        if ($userId !== null) {
+            $query->where('user_id', $userId);
+        }
+
+        if ($type) {
+            $query->where('type', $type);
+        }
+
+        return $query;
+    }
+
+    /**
+     * @return array{0: string, 1: list<float>}
+     */
+    private static function distanceKmSquaredExpression(float $latitude, float $longitude): array
+    {
+        $cosLat = cos(deg2rad($latitude));
+
+        return [
+            '? * ((((longitude - ?) * ?) * ((longitude - ?) * ?)) + ((latitude - ?) * (latitude - ?)))',
+            [
+                self::KM_PER_DEGREE * self::KM_PER_DEGREE,
+                $longitude,
+                $cosLat,
+                $longitude,
+                $cosLat,
+                $latitude,
+                $latitude,
+            ],
+        ];
     }
 
     /**

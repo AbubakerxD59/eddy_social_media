@@ -10,6 +10,9 @@ import type { FeedSignal, Paginator, SignalType } from '@/types/social';
 
 type FeedFilter = 'for-you' | 'connections' | 'opportunity' | 'need';
 
+const PAGE_SIZE = 20;
+const PREFETCH_AT = 15;
+
 const props = defineProps<{
     signals?: Paginator<FeedSignal> | null;
     highlight?: string | null;
@@ -20,10 +23,29 @@ const props = defineProps<{
 
 const replacing = ref(false);
 const pendingFilter = ref<FeedFilter | null>(null);
+const prefetchSentinel = ref<HTMLElement | null>(null);
 let replacingVisitId: string | null = null;
 
 const activeFilter = computed<FeedFilter>(() => pendingFilter.value ?? props.activeFilter ?? 'for-you');
 const items = computed(() => (replacing.value ? [] : (props.signals?.data ?? [])));
+
+const prefetchIndex = computed(() => {
+    const count = items.value.length;
+
+    if (count === 0) {
+        return -1;
+    }
+
+    const lastPageStart = Math.floor((count - 1) / PAGE_SIZE) * PAGE_SIZE;
+
+    return Math.min(lastPageStart + PREFETCH_AT - 1, count - 1);
+});
+
+const prefetchEndElement = (): HTMLElement | null => prefetchSentinel.value;
+
+const setPrefetchSentinel = (el: Element | null) => {
+    prefetchSentinel.value = el instanceof HTMLElement ? el : null;
+};
 
 const filters = computed(() => [
     { label: 'For You', value: 'for-you' as const, href: '/dashboard' },
@@ -183,14 +205,23 @@ onBeforeUnmount(() => {
                 </div>
             </template>
 
-            <InfiniteScroll :key="activeFilter" data="signals" :buffer="400">
+            <InfiniteScroll
+                :key="activeFilter"
+                data="signals"
+                :buffer="1"
+                :end-element="prefetchEndElement"
+            >
                 <div class="flex flex-col gap-4">
-                    <SignalCard
-                        v-for="signal in items"
+                    <div
+                        v-for="(signal, index) in items"
                         :key="signal.id"
-                        :signal="signal"
-                        :highlighted="props.highlight === signal.id"
-                    />
+                        :ref="index === prefetchIndex ? setPrefetchSentinel : undefined"
+                    >
+                        <SignalCard
+                            :signal="signal"
+                            :highlighted="props.highlight === signal.id"
+                        />
+                    </div>
 
                     <div
                         v-if="items.length === 0"
