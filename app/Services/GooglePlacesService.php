@@ -10,15 +10,19 @@ class GooglePlacesService
     private const AUTOCOMPLETE_URL = 'https://places.googleapis.com/v1/places:autocomplete';
 
     /**
+     * Autocomplete (New) rejects Table B types as includedPrimaryTypes.
+     * Use the `(regions)` collection so cities, states, and countries are returned.
+     *
      * @var list<string>
      */
     public const REGION_TYPES = [
-        'locality',
-        'administrative_area_level_1',
-        'administrative_area_level_2',
-        'country',
-        'neighborhood',
+        '(regions)',
     ];
+
+    /**
+     * Autocomplete (New) circle bias must be 0–50,000 meters.
+     */
+    private const LOCATION_BIAS_RADIUS_METERS = 50000.0;
 
     /**
      * @param  array{0: float, 1: float}|null  $origin
@@ -42,13 +46,17 @@ class GooglePlacesService
         ]);
 
         if ($origin !== null) {
+            $body['origin'] = [
+                'latitude' => $origin[0],
+                'longitude' => $origin[1],
+            ];
             $body['locationBias'] = [
                 'circle' => [
                     'center' => [
                         'latitude' => $origin[0],
                         'longitude' => $origin[1],
                     ],
-                    'radius' => 80000.0,
+                    'radius' => self::LOCATION_BIAS_RADIUS_METERS,
                 ],
             ];
         }

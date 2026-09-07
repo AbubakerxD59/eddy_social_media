@@ -27,6 +27,8 @@ const placeId = ref('');
 const panelStyle = ref<Record<string, string>>({});
 
 const label = computed(() => page.props.viewerLocation || 'Set location');
+const originLatitude = computed(() => page.props.viewerLatitude ?? null);
+const originLongitude = computed(() => page.props.viewerLongitude ?? null);
 
 const positionPanel = () => {
     const button = root.value?.querySelector('button');
@@ -158,7 +160,8 @@ const onPicked = (picked: PickedLocation) => {
                     hide-remote
                     quiet
                     :sync-viewer="false"
-                    :bias-origin="false"
+                    :origin-latitude="originLatitude"
+                    :origin-longitude="originLongitude"
                     scope="regions"
                     placeholder="Search a city or place"
                     autofocus

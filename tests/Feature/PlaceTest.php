@@ -87,14 +87,42 @@ test('region autocomplete searches google without a local bias', function () {
         $body = $request->data();
 
         return ($body['input'] ?? null) === 'London'
-            && ($body['includedPrimaryTypes'] ?? null) === [
-                'locality',
-                'administrative_area_level_1',
-                'administrative_area_level_2',
-                'country',
-                'neighborhood',
-            ]
+            && ($body['includedPrimaryTypes'] ?? null) === ['(regions)']
             && ! isset($body['locationBias']);
+    });
+});
+
+test('nearby autocomplete biases within the places api radius limit', function () {
+    config(['services.google.places_key' => 'test-key']);
+
+    Http::fake(fn () => Http::response(['suggestions' => []]));
+
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->postJson(route('places.autocomplete'), [
+            'input' => 'Orlando',
+            'latitude' => 28.54,
+            'longitude' => -81.38,
+        ])
+        ->assertOk();
+
+    Http::assertSent(function ($request): bool {
+        if (! str_contains($request->url(), 'places:autocomplete')) {
+            return false;
+        }
+
+        $body = $request->data();
+        $radius = $body['locationBias']['circle']['radius'] ?? null;
+
+        return ($body['input'] ?? null) === 'Orlando'
+            && ($body['origin']['latitude'] ?? null) === 28.54
+            && ($body['origin']['longitude'] ?? null) === -81.38
+            && ($body['locationBias']['circle']['center']['latitude'] ?? null) === 28.54
+            && ($body['locationBias']['circle']['center']['longitude'] ?? null) === -81.38
+            && is_numeric($radius)
+            && $radius > 0
+            && $radius <= 50000;
     });
 });
 
