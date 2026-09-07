@@ -1,4 +1,5 @@
 import type { Auth } from '@/types/auth';
+import type { StoryGroup, UniverseRail } from '@/types/dashboard';
 
 // Extend ImportMeta interface for Vite...
 declare module 'vite/client' {
@@ -19,6 +20,12 @@ declare module '@inertiajs/core' {
             name: string;
             auth: Auth;
             sidebarOpen: boolean;
+            stories?: StoryGroup[];
+            rail?: UniverseRail | null;
+            viewerLatitude?: number | null;
+            viewerLongitude?: number | null;
+            viewerLocation?: string | null;
+            viewerLocationManual?: boolean;
             [key: string]: unknown;
         };
     }

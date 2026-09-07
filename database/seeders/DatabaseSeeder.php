@@ -48,11 +48,67 @@ class DatabaseSeeder extends Seeder
         Signal::query()->firstOrCreate(
             [
                 'user_id' => $ada->id,
-                'body' => 'Eddy is live for quotes, photos, video, and link signals.',
+                'body' => 'Eddy is live for drops, needs, opportunities, and polls.',
             ],
             [
                 'public_id' => Signal::generatePublicId(),
-                'type' => SignalType::Quote,
+                'type' => SignalType::Drop,
+            ],
+        );
+
+        Signal::query()->firstOrCreate(
+            [
+                'user_id' => $ada->id,
+                'title' => 'Need a video editor for ongoing projects',
+            ],
+            [
+                'public_id' => Signal::generatePublicId(),
+                'type' => SignalType::Need,
+                'body' => 'Looking for someone who can cut weekly product clips.',
+                'payload' => [
+                    'budget' => '$500 - $1,000 / project',
+                    'timeline' => '2 weeks',
+                    'location' => 'Remote',
+                    'skills' => ['Premiere Pro', 'After Effects'],
+                ],
+            ],
+        );
+
+        Signal::query()->firstOrCreate(
+            [
+                'user_id' => $ada->id,
+                'title' => 'Commercial construction project',
+            ],
+            [
+                'public_id' => Signal::generatePublicId(),
+                'type' => SignalType::Opportunity,
+                'body' => 'Seeking trade partners for a mid-size commercial build.',
+                'payload' => [
+                    'project_value' => '$250K - $500K',
+                    'timeline' => '3 months',
+                    'location' => 'Orlando, FL',
+                    'trades' => ['Electrical', 'HVAC', 'Plumbing'],
+                ],
+                'latitude' => 28.5383355,
+                'longitude' => -81.3792365,
+            ],
+        );
+
+        Signal::query()->firstOrCreate(
+            [
+                'user_id' => $ada->id,
+                'body' => 'Which channel should we double down on next quarter?',
+            ],
+            [
+                'public_id' => Signal::generatePublicId(),
+                'type' => SignalType::Poll,
+                'payload' => [
+                    'options' => [
+                        ['id' => '1', 'text' => 'LinkedIn'],
+                        ['id' => '2', 'text' => 'Short-form video'],
+                        ['id' => '3', 'text' => 'Email'],
+                    ],
+                ],
             ],
         );
 
@@ -63,7 +119,7 @@ class DatabaseSeeder extends Seeder
             ],
             [
                 'public_id' => Signal::generatePublicId(),
-                'type' => SignalType::Link,
+                'type' => SignalType::Drop,
                 'link_url' => 'https://laravel.com',
                 'link_title' => 'Laravel',
                 'link_description' => 'The PHP framework for web artisans.',

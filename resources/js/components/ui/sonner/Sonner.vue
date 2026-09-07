@@ -11,14 +11,17 @@ const props = defineProps<ToasterProps>()
 
 <template>
   <Sonner
+    v-bind="props"
     :class="cn('toaster group', props.class)"
     :style="{
-      '--normal-bg': 'var(--popover)',
-      '--normal-text': 'var(--popover-foreground)',
-      '--normal-border': 'var(--border)',
+      '--normal-bg': 'transparent',
+      '--normal-text': 'var(--foreground)',
+      '--normal-border': 'rgb(255 255 255 / 0.22)',
       '--border-radius': 'var(--radius)',
     }"
-    v-bind="props"
+    :toast-options="{
+      class: 'glass-popup',
+    }"
   >
     <template #success-icon>
       <CircleCheckIcon class="size-4" />

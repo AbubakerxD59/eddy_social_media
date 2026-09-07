@@ -15,7 +15,8 @@ test('a public profile shows the users signals', function () {
             ->component('Profile/Show')
             ->where('profile.username', 'ada')
             ->where('profile.is_own', false)
-            ->has('signals.data', 1));
+            ->missing('signals')
+            ->loadDeferredProps('feed', fn ($page) => $page->has('signals.data', 1)));
 });
 
 test('users can list themselves as mentors', function () {
@@ -41,7 +42,8 @@ test('users can list themselves as mentors', function () {
         ->assertInertia(fn ($page) => $page
             ->component('Mentors/Index')
             ->where('isMentor', true)
-            ->has('mentors.data', 1));
+            ->missing('mentors')
+            ->loadDeferredProps('mentors', fn ($page) => $page->has('mentors.data', 1)));
 });
 
 test('mentor profiles appear on the public profile', function () {

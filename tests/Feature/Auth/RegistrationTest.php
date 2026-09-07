@@ -2,7 +2,9 @@
 
 namespace Tests\Feature\Auth;
 
+use App\Support\CountryCallingCodes;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Inertia\Testing\AssertableInertia as Assert;
 use Laravel\Fortify\Features;
 use Tests\TestCase;
 
@@ -45,6 +47,25 @@ class RegistrationTest extends TestCase
         $response = $this->get(route('register'));
 
         $response->assertOk();
+        $response->assertInertia(fn (Assert $page) => $page
+            ->component('auth/Register')
+            ->has('countryCodes')
+            ->where('countryCodes', function ($countryCodes) {
+                $pakistan = collect($countryCodes)->firstWhere('name', 'Pakistan');
+                $unitedStates = collect($countryCodes)->firstWhere('name', 'United States');
+
+                return $pakistan['code'] === '+92'
+                    && $pakistan['label'] === 'Pakistan (+92)'
+                    && $unitedStates['code'] === '+1'
+                    && $unitedStates['label'] === 'United States (+1)';
+            }),
+        );
+
+        $this->assertContains('+92', CountryCallingCodes::codes());
+        $this->assertSame(
+            'United Kingdom (+44)',
+            collect(CountryCallingCodes::options())->firstWhere('name', 'United Kingdom')['label'],
+        );
     }
 
     public function test_new_users_can_register()

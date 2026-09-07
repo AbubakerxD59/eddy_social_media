@@ -12,20 +12,15 @@ class PublicProfileController extends Controller
     {
         $user->load('mentorProfile');
 
-        $signals = FeedController::feedQuery()
-            ->where('user_id', $user->id)
-            ->roots()
-            ->latest()
-            ->paginate(15)
-            ->through(fn ($signal) => FeedController::present($signal));
-
         return Inertia::render('Profile/Show', [
             'profile' => [
                 ...$user->toPublicArray(),
                 'is_mentor' => $user->mentorProfile !== null,
                 'is_own' => auth()->id() === $user->id,
             ],
-            'signals' => $signals,
+            'signals' => Inertia::scroll(
+                fn () => FeedController::paginatedSignals(request(), null, $user->id),
+            )->defer('feed'),
         ]);
     }
 }

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Form, Head } from '@inertiajs/vue3';
 import { ref } from 'vue';
+import CountryCodeSelect from '@/components/CountryCodeSelect.vue';
 import InputError from '@/components/InputError.vue';
 import PasswordInput from '@/components/PasswordInput.vue';
 import PasswordStrength from '@/components/PasswordStrength.vue';
@@ -15,9 +16,19 @@ import { store } from '@/routes/register';
 const password = ref('');
 const passwordConfirmation = ref('');
 
+const maxDateOfBirth = (() => {
+    const date = new Date();
+    date.setDate(date.getDate() - 1);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+
+    return `${year}-${month}-${day}`;
+})();
+
 const { countryCodes, fiscalYears } = defineProps<{
     passwordRules: string;
-    countryCodes: { code: string; label: string }[];
+    countryCodes: { code: string; name: string; label: string }[];
     fiscalYears: number[];
 }>();
 
@@ -88,22 +99,8 @@ const selectClass =
 
             <div class="grid gap-2">
                 <Label for="phone_number">Phone number</Label>
-                <div class="grid grid-cols-[7.5rem_1fr] gap-2">
-                    <select
-                        id="phone_country_code"
-                        name="phone_country_code"
-                        required
-                        :class="selectClass"
-                        aria-label="Country code"
-                    >
-                        <option
-                            v-for="option in countryCodes"
-                            :key="option.label"
-                            :value="option.code"
-                        >
-                            {{ option.label }}
-                        </option>
-                    </select>
+                <div class="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
+                    <CountryCodeSelect :options="countryCodes" />
                     <Input
                         id="phone_number"
                         type="tel"
@@ -143,6 +140,9 @@ const selectClass =
                         required
                         autocomplete="bday"
                         name="date_of_birth"
+                        min="1900-01-01"
+                        :max="maxDateOfBirth"
+                        placeholder="Select date of birth"
                     />
                     <InputError :message="errors.date_of_birth" />
                 </div>

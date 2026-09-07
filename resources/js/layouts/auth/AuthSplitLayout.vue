@@ -19,7 +19,7 @@ defineProps<{
         <div
             class="bg-muted relative hidden h-full flex-col p-10 text-white lg:flex dark:border-r"
         >
-            <div class="absolute inset-0 bg-zinc-900" />
+            <div class="from-primary/35 via-background to-background absolute inset-0 bg-gradient-to-br" />
             <Link
                 :href="home()"
                 class="relative z-20 flex items-center text-lg font-medium"

@@ -36,7 +36,7 @@ onKeyStroke('Escape', (event) => {
         <button
             v-else
             type="button"
-            class="bg-foreground text-background hover:bg-foreground/90 flex size-14 cursor-pointer items-center justify-center rounded-[22px] shadow-xl transition-transform hover:scale-[1.03] active:scale-95"
+            class="bg-primary text-primary-foreground hover:bg-primary/90 flex size-14 cursor-pointer items-center justify-center rounded-[22px] shadow-xl shadow-primary/30 transition-transform hover:scale-[1.03] active:scale-95"
             aria-label="New signal"
             @click="openDock"
         >

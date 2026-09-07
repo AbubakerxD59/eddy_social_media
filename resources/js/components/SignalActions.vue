@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { Link } from '@inertiajs/vue3';
-import { Heart, MessageCircle, Share2 } from '@lucide/vue';
+import { MessageCircle, Share2, Star } from '@lucide/vue';
 import { computed, ref } from 'vue';
+import { Button } from '@/components/ui/button';
 import { csrfHeaders } from '@/lib/csrf';
 import { notifyError, notifySuccess } from '@/lib/notify';
 import type { FeedSignal } from '@/types/social';
@@ -20,6 +21,18 @@ const shareUrl = computed(() => {
     }
 
     return `${window.location.origin}/s/${signal.id}`;
+});
+
+const ctaLabel = computed(() => {
+    if (signal.type === 'need') {
+        return 'View Matches';
+    }
+
+    if (signal.type === 'opportunity') {
+        return 'View Details';
+    }
+
+    return null;
 });
 
 const toggleLike = async () => {
@@ -83,42 +96,58 @@ const formatCount = (value: number): string => {
 </script>
 
 <template>
-    <div class="flex items-center gap-3 pt-1">
+    <div class="flex items-center gap-1 pt-1">
         <button
             type="button"
-            class="text-muted-foreground hover:text-foreground inline-flex min-w-12 cursor-pointer items-center gap-1.5 rounded-full px-2 py-1.5 text-sm hover:bg-accent"
-            :class="liked && 'text-red-500 hover:bg-red-500/10 hover:text-red-500'"
+            class="text-muted-foreground hover:text-drop inline-flex min-w-12 cursor-pointer items-center gap-1.5 rounded-full px-2 py-1.5 text-sm hover:bg-drop/10"
+            :class="liked && 'text-drop hover:bg-drop/10 hover:text-drop'"
             :aria-pressed="liked"
-            :aria-label="liked ? 'Remove heart' : 'Heart'"
+            :aria-label="liked ? 'Remove props' : 'Give props'"
             @click="toggleLike"
         >
-            <Heart
-                class="size-6 shrink-0"
+            <Star
+                class="size-5 shrink-0"
                 :class="liked && 'fill-current'"
             />
-            <span class="min-w-4 tabular-nums">
-                {{ formatCount(likesCount) }}
+            <span class="text-[13px] font-medium">
+                Props
+                <span v-if="formatCount(likesCount)" class="tabular-nums">
+                    {{ formatCount(likesCount) }}
+                </span>
             </span>
         </button>
 
         <Link
             :href="`/s/${signal.id}`"
             class="text-muted-foreground hover:text-foreground inline-flex min-w-12 cursor-pointer items-center gap-1.5 rounded-full px-2 py-1.5 text-sm hover:bg-accent"
-            aria-label="Reply"
+            aria-label="Comment"
         >
-            <MessageCircle class="size-6 shrink-0" />
-            <span class="min-w-4 tabular-nums">
-                {{ formatCount(signal.replies_count) }}
+            <MessageCircle class="size-5 shrink-0" />
+            <span class="text-[13px] font-medium">
+                Comment
+                <span v-if="formatCount(signal.replies_count)" class="tabular-nums">
+                    {{ formatCount(signal.replies_count) }}
+                </span>
             </span>
         </Link>
 
         <button
             type="button"
-            class="text-muted-foreground hover:text-foreground inline-flex min-w-12 cursor-pointer items-center justify-center gap-1.5 rounded-full px-2 py-1.5 text-sm hover:bg-accent"
+            class="text-muted-foreground hover:text-foreground inline-flex cursor-pointer items-center gap-1.5 rounded-full px-2 py-1.5 text-sm hover:bg-accent"
             aria-label="Share"
             @click="share"
         >
-            <Share2 class="size-6 shrink-0" />
+            <Share2 class="size-5 shrink-0" />
+            <span class="text-[13px] font-medium">Share</span>
         </button>
+
+        <Button
+            v-if="ctaLabel"
+            as-child
+            size="sm"
+            class="ml-auto rounded-full"
+        >
+            <Link :href="`/s/${signal.id}`">{{ ctaLabel }}</Link>
+        </Button>
     </div>
 </template>

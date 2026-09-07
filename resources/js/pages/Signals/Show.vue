@@ -1,26 +1,37 @@
 <script setup lang="ts">
-import { Head, Link, usePage } from '@inertiajs/vue3';
+import { Deferred, Head, Link, usePage } from '@inertiajs/vue3';
 import { ArrowLeft } from '@lucide/vue';
 import { computed } from 'vue';
 import SignalCard from '@/components/SignalCard.vue';
 import SignalComposer from '@/components/SignalComposer.vue';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
+import { htmlToPlainText } from '@/lib/htmlBody';
 import type { FeedSignal } from '@/types/social';
 
 const { signal, replies } = defineProps<{
     signal: FeedSignal;
-    replies: FeedSignal[];
+    replies?: FeedSignal[];
 }>();
 
 const page = usePage();
 const canReply = computed(() => Boolean(page.props.auth.user));
+const pageTitle = computed(() => {
+    if (signal.title) {
+        return signal.title;
+    }
+
+    const body = htmlToPlainText(signal.body);
+
+    return body ? body.slice(0, 48) : 'Signal';
+});
 </script>
 
 <template>
-    <Head :title="signal.body ? signal.body.slice(0, 48) : 'Signal'" />
+    <Head :title="pageTitle" />
 
-    <div class="mx-auto w-full max-w-3xl px-4 pb-6">
-        <div class="flex items-center gap-1 py-3">
+    <div class="flex flex-col gap-4">
+        <div class="flex items-center gap-1">
             <Button
                 as-child
                 variant="ghost"
@@ -34,24 +45,32 @@ const canReply = computed(() => Boolean(page.props.auth.user));
             <h1 class="text-[17px] font-semibold">Signal</h1>
         </div>
 
-        <div class="rounded-2xl border [&>:last-child]:border-b-0">
-            <SignalCard :signal="signal" :show-line="replies.length > 0 || canReply" />
+        <SignalCard :signal="signal" />
 
-            <SignalComposer v-if="canReply" :parent-id="signal.id" />
+        <SignalComposer v-if="canReply" :parent-id="signal.id" />
 
-            <SignalCard
-                v-for="(reply, index) in replies"
-                :key="reply.id"
-                :signal="reply"
-                :show-line="index < replies.length - 1"
-            />
+        <Deferred data="replies">
+            <template #fallback>
+                <div class="flex flex-col gap-3">
+                    <Skeleton v-for="n in 2" :key="n" class="h-24 w-full rounded-2xl" />
+                </div>
+            </template>
+
+            <div v-if="replies?.length" class="flex flex-col gap-3">
+                <SignalCard
+                    v-for="reply in replies"
+                    :key="reply.id"
+                    :signal="reply"
+                    variant="thread"
+                />
+            </div>
 
             <div
-                v-if="replies.length === 0 && !canReply"
-                class="text-muted-foreground px-4 py-10 text-center text-sm"
+                v-if="(replies?.length ?? 0) === 0 && !canReply"
+                class="glass-panel text-muted-foreground rounded-2xl px-4 py-10 text-center text-sm"
             >
                 Log in to reply to this signal.
             </div>
-        </div>
+        </Deferred>
     </div>
 </template>

@@ -168,18 +168,18 @@ const toggleMute = () => {
         </DropdownMenuTrigger>
         <DropdownMenuContent
             align="end"
-            class="rounded-[20px] border-neutral-700 bg-neutral-800 p-2 text-neutral-100 shadow-lg [&_[data-slot=dropdown-menu-separator]]:bg-neutral-600"
+            class="rounded-[20px] p-2"
         >
             <DropdownMenuItem
                 :disabled="saving"
-                class="rounded-[10px] text-neutral-100 hover:bg-white/10 hover:text-white focus:bg-white/10 focus:text-white [&_svg]:text-neutral-200"
+                class="rounded-[10px]"
                 @click="toggleSave"
             >
                 <Bookmark :class="saved && 'fill-current'" />
                 {{ saved ? 'Unsave' : 'Save' }}
             </DropdownMenuItem>
             <DropdownMenuItem
-                class="rounded-[10px] text-neutral-100 hover:bg-white/10 hover:text-white focus:bg-white/10 focus:text-white [&_svg]:text-neutral-200"
+                class="rounded-[10px]"
                 @click="copyLink"
             >
                 <Link />
@@ -188,7 +188,7 @@ const toggleMute = () => {
             <DropdownMenuItem
                 v-if="signal.can_report || !user"
                 :disabled="reported || reporting"
-                class="rounded-[10px] text-neutral-100 hover:bg-white/10 hover:text-white focus:bg-white/10 focus:text-white [&_svg]:text-neutral-200"
+                class="rounded-[10px]"
                 @click="reportSignal"
             >
                 <Flag />
@@ -197,7 +197,7 @@ const toggleMute = () => {
             <DropdownMenuItem
                 v-if="signal.can_mute || !user"
                 :disabled="muting"
-                class="rounded-[10px] text-neutral-100 hover:bg-white/10 hover:text-white focus:bg-white/10 focus:text-white [&_svg]:text-neutral-200"
+                class="rounded-[10px]"
                 @click="toggleMute"
             >
                 <Bell v-if="authorMuted" />
@@ -207,7 +207,7 @@ const toggleMute = () => {
             <template v-if="signal.can_delete">
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
-                    class="rounded-[10px] text-red-400 hover:bg-white/10 hover:text-red-400 focus:bg-white/10 focus:text-red-400 [&_svg]:text-red-400"
+                    class="text-destructive focus:text-destructive rounded-[10px]"
                     @click="emit('delete')"
                 >
                     <Trash2 />

@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { Form, Head, Link } from '@inertiajs/vue3';
+import { Deferred, Form, Head, InfiniteScroll, Link } from '@inertiajs/vue3';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Skeleton } from '@/components/ui/skeleton';
 import { getInitials } from '@/composables/useInitials';
 import type { Paginator, PublicUser } from '@/types/social';
 
@@ -17,7 +18,7 @@ type Mentor = {
 };
 
 defineProps<{
-    mentors: Paginator<Mentor>;
+    mentors?: Paginator<Mentor>;
     isMentor: boolean;
 }>();
 </script>
@@ -36,7 +37,7 @@ defineProps<{
 
         <section
             v-if="!isMentor"
-            class="rounded-xl border p-4"
+            class="bg-card rounded-xl border p-4"
         >
             <h2 class="font-medium">Become a mentor</h2>
             <p class="text-muted-foreground mb-4 text-sm">
@@ -85,61 +86,71 @@ defineProps<{
             </Form>
         </section>
 
-        <div class="grid gap-4 md:grid-cols-2">
-            <Link
-                v-for="mentor in mentors.data"
-                :key="mentor.id"
-                :href="`/@${mentor.user.username}`"
-                class="rounded-xl border p-4"
-                data-clickable
-            >
-                <div class="flex items-center gap-3">
-                    <Avatar>
-                        <AvatarImage
-                            v-if="mentor.user.avatar"
-                            :src="mentor.user.avatar"
-                            :alt="mentor.user.name"
-                        />
-                        <AvatarFallback>
-                            {{ getInitials(mentor.user.name) }}
-                        </AvatarFallback>
-                    </Avatar>
-                    <div>
-                        <p class="font-semibold hover:underline">
-                            {{ mentor.user.name }}
-                        </p>
-                        <p class="text-muted-foreground text-sm">
-                            @{{ mentor.user.username }}
-                        </p>
-                    </div>
+        <Deferred data="mentors">
+            <template #fallback>
+                <div class="grid gap-4 md:grid-cols-2">
+                    <Skeleton v-for="n in 4" :key="n" class="h-40 rounded-xl" />
                 </div>
-                <p v-if="mentor.headline" class="mt-3 font-medium">
-                    {{ mentor.headline }}
-                </p>
-                <p v-if="mentor.bio" class="text-muted-foreground mt-1 text-sm">
-                    {{ mentor.bio }}
-                </p>
-                <p
-                    v-if="mentor.hourly_rate_cents"
-                    class="mt-3 text-sm font-medium"
-                >
-                    ${{ (mentor.hourly_rate_cents / 100).toFixed(0) }} / hour
-                </p>
-                <p class="text-muted-foreground mt-2 text-xs">
-                    {{
-                        mentor.google_connected
-                            ? 'Google Calendar connected'
-                            : 'Live booking with Google Meet is coming next'
-                    }}
-                </p>
-            </Link>
-        </div>
+            </template>
 
-        <p
-            v-if="mentors.data.length === 0"
-            class="text-muted-foreground text-sm"
-        >
-            No mentors are listed yet.
-        </p>
+            <InfiniteScroll data="mentors" :buffer="400">
+                <div class="grid gap-4 md:grid-cols-2">
+                    <Link
+                        v-for="mentor in mentors?.data ?? []"
+                        :key="mentor.id"
+                        :href="`/@${mentor.user.username}`"
+                        class="bg-card cursor-pointer rounded-xl border p-4"
+                        data-clickable
+                    >
+                        <div class="flex items-center gap-3">
+                            <Avatar>
+                                <AvatarImage
+                                    v-if="mentor.user.avatar"
+                                    :src="mentor.user.avatar"
+                                    :alt="mentor.user.name"
+                                />
+                                <AvatarFallback>
+                                    {{ getInitials(mentor.user.name) }}
+                                </AvatarFallback>
+                            </Avatar>
+                            <div>
+                                <p class="font-semibold hover:underline">
+                                    {{ mentor.user.name }}
+                                </p>
+                                <p class="text-muted-foreground text-sm">
+                                    @{{ mentor.user.username }}
+                                </p>
+                            </div>
+                        </div>
+                        <p v-if="mentor.headline" class="mt-3 font-medium">
+                            {{ mentor.headline }}
+                        </p>
+                        <p v-if="mentor.bio" class="text-muted-foreground mt-1 text-sm">
+                            {{ mentor.bio }}
+                        </p>
+                        <p
+                            v-if="mentor.hourly_rate_cents"
+                            class="mt-3 text-sm font-medium"
+                        >
+                            ${{ (mentor.hourly_rate_cents / 100).toFixed(0) }} / hour
+                        </p>
+                        <p class="text-muted-foreground mt-2 text-xs">
+                            {{
+                                mentor.google_connected
+                                    ? 'Google Calendar connected'
+                                    : 'Live booking with Google Meet is coming next'
+                            }}
+                        </p>
+                    </Link>
+                </div>
+
+                <p
+                    v-if="(mentors?.data.length ?? 0) === 0"
+                    class="text-muted-foreground text-sm"
+                >
+                    No mentors are listed yet.
+                </p>
+            </InfiniteScroll>
+        </Deferred>
     </div>
 </template>

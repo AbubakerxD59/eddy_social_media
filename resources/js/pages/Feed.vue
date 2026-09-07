@@ -1,76 +1,205 @@
 <script setup lang="ts">
-import { Head, Link } from '@inertiajs/vue3';
-import { computed } from 'vue';
+import { Deferred, Head, InfiniteScroll, Link, router } from '@inertiajs/vue3';
+import { computed, onBeforeUnmount, ref } from 'vue';
+import SpotlightStories from '@/components/dashboard/SpotlightStories.vue';
 import SignalCard from '@/components/SignalCard.vue';
 import SignalComposer from '@/components/SignalComposer.vue';
-import type { FeedSignal, Paginator } from '@/types/social';
+import { Skeleton } from '@/components/ui/skeleton';
+import { cn } from '@/lib/utils';
+import type { FeedSignal, Paginator, SignalType } from '@/types/social';
+
+type FeedFilter = 'for-you' | 'connections' | 'opportunity' | 'need';
 
 const props = defineProps<{
     signals?: Paginator<FeedSignal> | null;
     highlight?: string | null;
+    compose?: SignalType | null;
+    activeFilter?: FeedFilter;
+    activeType?: SignalType | null;
 }>();
 
-const page = computed<Paginator<FeedSignal>>(() => props.signals ?? {
-    data: [],
-    next_page_url: null,
-    prev_page_url: null,
-    current_page: 1,
-    last_page: 1,
-    per_page: 15,
-    total: 0,
+const replacing = ref(false);
+const pendingFilter = ref<FeedFilter | null>(null);
+let replacingVisitId: string | null = null;
+
+const activeFilter = computed<FeedFilter>(() => pendingFilter.value ?? props.activeFilter ?? 'for-you');
+const items = computed(() => (replacing.value ? [] : (props.signals?.data ?? [])));
+
+const filters = computed(() => [
+    { label: 'For You', value: 'for-you' as const, href: '/dashboard' },
+    { label: 'Connections', value: 'connections' as const, href: '/dashboard?filter=connections' },
+    { label: 'Opportunities', value: 'opportunity' as const, href: '/dashboard?filter=opportunity' },
+    { label: 'Needs', value: 'need' as const, href: '/dashboard?filter=need' },
+]);
+
+const emptyMessage = computed(() => {
+    switch (activeFilter.value) {
+        case 'connections':
+            return 'Posts from your connections will show up here.';
+        case 'opportunity':
+            return 'No opportunities yet.';
+        case 'need':
+            return 'No needs yet.';
+        default:
+            return 'No signals yet. Start the conversation.';
+    }
 });
 
-const items = computed(() => page.value.data);
+const feedFilterFromUrl = (url: URL): FeedFilter => {
+    const filter = url.searchParams.get('filter');
 
-const continuesSignal = (index: number): boolean => {
-    const current = items.value[index];
-    const next = items.value[index + 1];
+    if (filter === 'connections' || filter === 'opportunity' || filter === 'need' || filter === 'for-you') {
+        return filter;
+    }
 
-    return Boolean(current && next && current.author.id === next.author.id);
+    return 'for-you';
 };
+
+const isDashboardUrl = (url: URL): boolean => url.pathname.replace(/\/+$/, '') === '/dashboard';
+
+const stopBefore = router.on('before', (event) => {
+    const visit = event.detail.visit;
+
+    if (visit.method !== 'get' || !isDashboardUrl(visit.url)) {
+        return;
+    }
+
+    const currentUrl = new URL(window.location.href);
+    const nextFilter = feedFilterFromUrl(visit.url);
+    const currentFilter = feedFilterFromUrl(currentUrl);
+
+    if (nextFilter === currentFilter) {
+        return;
+    }
+
+    pendingFilter.value = nextFilter;
+    replacing.value = true;
+    replacingVisitId = visit.id;
+    router.remember(undefined, 'inertia:infinite-scroll-data:signals');
+
+    if (!visit.reset.includes('signals')) {
+        visit.reset = [...visit.reset, 'signals'];
+    }
+
+    if (visit.only.length === 0) {
+        visit.only = ['signals', 'activeFilter', 'activeType', 'highlight', 'compose'];
+    }
+});
+
+const stopFinish = router.on('finish', (event) => {
+    if (event.detail.visit.id !== replacingVisitId) {
+        return;
+    }
+
+    if (event.detail.visit.cancelled || event.detail.visit.interrupted) {
+        return;
+    }
+
+    replacingVisitId = null;
+    replacing.value = false;
+    pendingFilter.value = null;
+});
+
+onBeforeUnmount(() => {
+    stopBefore();
+    stopFinish();
+});
 </script>
 
 <template>
-    <Head title="Home" />
+    <Head title="Universe" />
 
-    <div
-        class="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col overflow-hidden px-4 pb-6"
-    >
-        <div class="shrink-0 py-3">
-            <h1 class="text-[17px] font-semibold">Home</h1>
-        </div>
+    <div class="flex flex-col gap-4">
+        <SignalComposer id="composer" :initial-type="compose" />
 
-        <div
-            class="min-h-0 flex-1 overflow-y-auto overscroll-contain rounded-2xl border [&>:last-child]:border-b-0"
+        <SpotlightStories />
+
+        <nav
+            class="glass-panel flex rounded-2xl px-1"
+            role="tablist"
+            aria-label="Feed filters"
         >
-            <SignalComposer />
-
-            <SignalCard
-                v-for="(signal, index) in items"
-                :key="signal.id"
-                :signal="signal"
-                :highlighted="props.highlight === signal.id"
-                :show-line="continuesSignal(index)"
-            />
-
-            <div
-                v-if="items.length === 0"
-                class="text-muted-foreground px-4 py-16 text-center text-sm"
+            <Link
+                v-for="filter in filters"
+                :key="filter.value"
+                :href="filter.href"
+                :only="['signals', 'activeFilter', 'activeType']"
+                :reset="['signals']"
+                preserve-scroll
+                preserve-state
+                role="tab"
+                :aria-selected="activeFilter === filter.value"
+                class="relative flex min-w-0 flex-1 cursor-pointer items-center justify-center px-2 py-3 text-[13px] font-semibold"
+                :class="
+                    cn(
+                        activeFilter === filter.value
+                            ? 'text-foreground'
+                            : 'text-muted-foreground hover:text-foreground',
+                    )
+                "
             >
-                No signals yet. Start the conversation.
-            </div>
+                <span class="truncate">{{ filter.label }}</span>
+                <span
+                    v-if="activeFilter === filter.value"
+                    class="bg-primary absolute inset-x-3 -bottom-px h-0.5 rounded-full"
+                />
+            </Link>
+        </nav>
 
+        <div v-if="replacing" class="flex flex-col gap-4">
             <div
-                v-if="page.next_page_url"
-                class="flex justify-center py-6"
+                v-for="n in 3"
+                :key="n"
+                class="glass-panel space-y-3 rounded-2xl px-4 py-4"
             >
-                <Link
-                    :href="page.next_page_url"
-                    class="text-sm font-medium underline underline-offset-4"
-                >
-                    Load more
-                </Link>
+                <div class="flex items-center gap-3">
+                    <Skeleton class="size-10 rounded-full" />
+                    <div class="flex-1 space-y-2">
+                        <Skeleton class="h-3 w-32" />
+                        <Skeleton class="h-3 w-20" />
+                    </div>
+                </div>
+                <Skeleton class="h-16 w-full" />
             </div>
         </div>
+
+        <Deferred v-else data="signals">
+            <template #fallback>
+                <div class="flex flex-col gap-4">
+                    <div
+                        v-for="n in 3"
+                        :key="n"
+                        class="glass-panel space-y-3 rounded-2xl px-4 py-4"
+                    >
+                        <div class="flex items-center gap-3">
+                            <Skeleton class="size-10 rounded-full" />
+                            <div class="flex-1 space-y-2">
+                                <Skeleton class="h-3 w-32" />
+                                <Skeleton class="h-3 w-20" />
+                            </div>
+                        </div>
+                        <Skeleton class="h-16 w-full" />
+                    </div>
+                </div>
+            </template>
+
+            <InfiniteScroll :key="activeFilter" data="signals" :buffer="400">
+                <div class="flex flex-col gap-4">
+                    <SignalCard
+                        v-for="signal in items"
+                        :key="signal.id"
+                        :signal="signal"
+                        :highlighted="props.highlight === signal.id"
+                    />
+
+                    <div
+                        v-if="items.length === 0"
+                        class="glass-panel text-muted-foreground rounded-2xl px-4 py-16 text-center text-sm"
+                    >
+                        {{ emptyMessage }}
+                    </div>
+                </div>
+            </InfiniteScroll>
+        </Deferred>
     </div>
 </template>

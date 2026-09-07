@@ -5,15 +5,14 @@ const { title, description } = defineProps<{
     title: string;
     description: string;
 }>();
-
 </script>
 
 <template>
     <Head :title="title" />
 
-    <div class="mx-auto max-w-xl px-4 py-16">
+    <div class="glass-panel rounded-2xl px-6 py-12">
         <h1 class="text-2xl font-semibold">{{ title }}</h1>
-        <p class="text-muted-foreground mt-3 text-sm leading-relaxed">
+        <p class="text-muted-foreground mt-3 max-w-xl text-sm leading-relaxed">
             {{ description }}
         </p>
     </div>

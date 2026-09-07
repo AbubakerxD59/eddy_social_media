@@ -37,6 +37,11 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property string|null $website
  * @property string|null $avatar_path
  * @property string|null $avatar_url
+ * @property float|null $latitude
+ * @property float|null $longitude
+ * @property Carbon|null $location_updated_at
+ * @property string|null $location_label
+ * @property bool $location_manual
  * @property Carbon|null $email_verified_at
  * @property string $password
  * @property string|null $two_factor_secret
@@ -65,7 +70,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
     'website',
     'avatar_path',
 ])]
-#[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
+#[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token', 'latitude', 'longitude', 'location_updated_at', 'location_label', 'location_manual'])]
 class User extends Authenticatable implements PasskeyUser
 {
     /** @use HasFactory<UserFactory> */
@@ -86,6 +91,10 @@ class User extends Authenticatable implements PasskeyUser
             'date_of_birth' => 'date',
             'fiscal_year' => 'integer',
             'full_time_employees' => 'integer',
+            'latitude' => 'float',
+            'longitude' => 'float',
+            'location_updated_at' => 'datetime',
+            'location_manual' => 'boolean',
         ];
     }
 
@@ -95,6 +104,22 @@ class User extends Authenticatable implements PasskeyUser
     public function signals(): HasMany
     {
         return $this->hasMany(Signal::class);
+    }
+
+    /**
+     * @return HasMany<SignalUpload, $this>
+     */
+    public function signalUploads(): HasMany
+    {
+        return $this->hasMany(SignalUpload::class);
+    }
+
+    /**
+     * @return HasMany<Story, $this>
+     */
+    public function stories(): HasMany
+    {
+        return $this->hasMany(Story::class);
     }
 
     /**

@@ -2,20 +2,24 @@
 import { Link, router, usePage } from '@inertiajs/vue3';
 import { computed, onMounted, ref } from 'vue';
 import ConfirmDeleteDialog from '@/components/ConfirmDeleteDialog.vue';
-import LinkifiedText from '@/components/LinkifiedText.vue';
+import FormattedBody from '@/components/FormattedBody.vue';
 import LinkPreviewCard from '@/components/LinkPreviewCard.vue';
 import MediaCarousel from '@/components/MediaCarousel.vue';
 import SignalActions from '@/components/SignalActions.vue';
+import SignalDetails from '@/components/SignalDetails.vue';
 import SignalMoreMenu from '@/components/SignalMoreMenu.vue';
-import ThreadAvatar from '@/components/ThreadAvatar.vue';
+import SignalPoll from '@/components/SignalPoll.vue';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { formatRelativeTime } from '@/lib/relativeTime';
+import { signalTypeMeta } from '@/lib/signalTypes';
+import { getInitials } from '@/composables/useInitials';
 import { cn } from '@/lib/utils';
 import type { FeedSignal } from '@/types/social';
 
-const { signal, highlighted = false, showLine = false } = defineProps<{
+const { signal, highlighted = false, variant = 'card' } = defineProps<{
     signal: FeedSignal;
     highlighted?: boolean;
-    showLine?: boolean;
+    variant?: 'card' | 'thread';
 }>();
 
 const article = ref<HTMLElement | null>(null);
@@ -29,6 +33,8 @@ const profileHref = computed(() => `/@${signal.author.username}`);
 const signalHref = computed(() => `/s/${signal.id}`);
 const isCurrentSignal = computed(() => page.url.split('?')[0] === signalHref.value);
 const createdAt = computed(() => formatRelativeTime(signal.created_at));
+const typeMeta = computed(() => signalTypeMeta(signal.type));
+const showTypeBadge = computed(() => !signal.is_reply);
 
 const shouldIgnoreClick = (event: MouseEvent): boolean => {
     if (event.defaultPrevented || event.button !== 0) {
@@ -41,7 +47,7 @@ const shouldIgnoreClick = (event: MouseEvent): boolean => {
         return true;
     }
 
-    if (target.closest('a, button, input, textarea, select, [role="menuitem"], [data-no-nav]')) {
+    if (target.closest('a, button, input, textarea, select, [contenteditable], [role="menuitem"], [data-no-nav]')) {
         return true;
     }
 
@@ -89,75 +95,101 @@ const remove = () => {
 <template>
     <article
         ref="article"
-        class="border-b px-4 transition-colors hover:bg-accent/30"
-        :class="[highlighted && 'bg-accent/50', !isCurrentSignal && 'cursor-pointer']"
+        class="transition-colors"
+        :class="[
+            'glass-panel rounded-2xl px-4 py-4',
+            highlighted && 'ring-primary/40 ring-2',
+            !isCurrentSignal && 'cursor-pointer hover:bg-accent/10',
+        ]"
         @click="openSignal"
     >
-        <div class="flex gap-3">
-            <ThreadAvatar
-                class="pt-3"
-                :name="signal.author.name"
-                :avatar="signal.author.avatar"
-                :href="profileHref"
-                :show-line="showLine"
+        <div class="flex items-start justify-between gap-3">
+            <Link :href="profileHref" class="flex min-w-0 items-center gap-3">
+                <Avatar class="size-11">
+                    <AvatarImage
+                        v-if="signal.author.avatar"
+                        :src="signal.author.avatar"
+                        :alt="signal.author.name"
+                    />
+                    <AvatarFallback>{{ getInitials(signal.author.name) }}</AvatarFallback>
+                </Avatar>
+                <span class="min-w-0">
+                    <span class="block truncate text-[15px] font-semibold">
+                        {{ signal.author.name }}
+                    </span>
+                    <span class="text-muted-foreground block truncate text-[12px]">
+                        {{ signal.author.headline || `@${signal.author.username}` }}
+                        <span v-if="createdAt"> · {{ createdAt }}</span>
+                    </span>
+                </span>
+            </Link>
+
+            <SignalMoreMenu
+                :signal="signal"
+                @delete="confirmOpen = true"
+            />
+        </div>
+
+        <div class="mt-3 space-y-3">
+            <span
+                v-if="showTypeBadge"
+                class="inline-flex rounded-md px-2 py-0.5 text-[11px] font-bold tracking-wide uppercase"
+                :class="typeMeta.badgeClass"
+            >
+                {{ signal.type === 'drop' ? 'Drop' : typeMeta.label }}
+            </span>
+
+            <h2
+                v-if="signal.title"
+                class="text-[17px] leading-snug font-semibold"
+            >
+                {{ signal.title }}
+            </h2>
+
+            <div
+                v-if="signal.body || signal.media.length > 1"
+                class="flex items-start gap-2"
+            >
+                <div
+                    v-if="signal.body"
+                    :class="
+                        cn(
+                            'text-muted-foreground min-w-0 flex-1 text-[15px] leading-relaxed',
+                            signal.type === 'drop' && 'text-foreground',
+                        )
+                    "
+                >
+                    <FormattedBody :html="signal.body" />
+                </div>
+                <span
+                    v-if="signal.media.length > 1"
+                    class="bg-muted text-muted-foreground mt-0.5 shrink-0 rounded-full px-2 py-0.5 text-[11px] tabular-nums"
+                >
+                    {{ mediaPage }}/{{ mediaPages }}
+                </span>
+            </div>
+
+            <SignalDetails
+                v-if="signal.need || signal.opportunity"
+                :need="signal.need"
+                :opportunity="signal.opportunity"
             />
 
-            <div class="min-w-0 flex-1 space-y-2 py-3">
-                <div class="flex items-start justify-between gap-2">
-                    <div class="flex min-w-0 flex-wrap items-baseline gap-x-1.5 text-[15px]">
-                        <Link
-                            :href="profileHref"
-                            class="truncate font-semibold hover:underline"
-                        >
-                            {{ signal.author.name }}
-                        </Link>
-                        <span
-                            v-if="createdAt"
-                            class="text-muted-foreground shrink-0"
-                        >
-                            · {{ createdAt }}
-                        </span>
-                    </div>
+            <SignalPoll
+                v-if="signal.poll"
+                :signal-id="signal.id"
+                :poll="signal.poll"
+            />
 
-                    <SignalMoreMenu
-                        :signal="signal"
-                        @delete="confirmOpen = true"
-                    />
-                </div>
+            <MediaCarousel
+                v-if="signal.media.length"
+                :media="signal.media"
+                @page="onCarouselPage"
+            />
 
-                <div
-                    v-if="signal.body || signal.media.length > 1"
-                    class="flex items-start gap-2"
-                >
-                    <p
-                        v-if="signal.body"
-                        :class="
-                            cn(
-                                'min-w-0 flex-1 whitespace-pre-wrap text-[15px] leading-relaxed',
-                                signal.type === 'quote' && 'text-[16px]',
-                            )
-                        "
-                    >
-                        <LinkifiedText :text="signal.body" />
-                    </p>
-                    <span
-                        v-if="signal.media.length > 1"
-                        class="bg-muted text-muted-foreground mt-0.5 shrink-0 rounded-full px-2 py-0.5 text-[11px] tabular-nums"
-                    >
-                        {{ mediaPage }}/{{ mediaPages }}
-                    </span>
-                </div>
+            <LinkPreviewCard v-if="signal.link" :link="signal.link" />
 
-                <MediaCarousel
-                    v-if="signal.media.length"
-                    :media="signal.media"
-                    @page="onCarouselPage"
-                />
-
-                <LinkPreviewCard v-if="signal.link" :link="signal.link" />
-
-                <SignalActions :signal="signal" />
-            </div>
+            <SignalActions :signal="signal" />
         </div>
 
         <ConfirmDeleteDialog

@@ -78,6 +78,7 @@ const playerFrameStyle = computed(() => {
 <template>
     <Dialog v-model:open="open">
         <DialogContent
+            :glass="false"
             :show-close-button="true"
             class="border-0 bg-transparent p-0 shadow-none"
             @pointer-down-outside="onPointerDownOutside"

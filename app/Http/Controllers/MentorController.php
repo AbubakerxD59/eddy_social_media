@@ -12,22 +12,22 @@ class MentorController extends Controller
 {
     public function index(): Response
     {
-        $mentors = MentorProfile::query()
-            ->where('is_accepting_bookings', true)
-            ->with('user')
-            ->latest()
-            ->paginate(12)
-            ->through(fn (MentorProfile $mentor) => [
-                'id' => $mentor->id,
-                'headline' => $mentor->headline ?: $mentor->user->headline,
-                'bio' => $mentor->bio ?: $mentor->user->bio,
-                'hourly_rate_cents' => $mentor->hourly_rate_cents,
-                'google_connected' => $mentor->google_connected_at !== null,
-                'user' => $mentor->user->toPublicArray(),
-            ]);
-
         return Inertia::render('Mentors/Index', [
-            'mentors' => $mentors,
+            'mentors' => Inertia::scroll(
+                fn () => MentorProfile::query()
+                    ->where('is_accepting_bookings', true)
+                    ->with('user')
+                    ->latest()
+                    ->paginate(FeedController::PAGE_SIZE)
+                    ->through(fn (MentorProfile $mentor) => [
+                        'id' => $mentor->id,
+                        'headline' => $mentor->headline ?: $mentor->user->headline,
+                        'bio' => $mentor->bio ?: $mentor->user->bio,
+                        'hourly_rate_cents' => $mentor->hourly_rate_cents,
+                        'google_connected' => $mentor->google_connected_at !== null,
+                        'user' => $mentor->user->toPublicArray(),
+                    ]),
+            )->defer('mentors'),
             'isMentor' => auth()->user()?->mentorProfile !== null,
         ]);
     }

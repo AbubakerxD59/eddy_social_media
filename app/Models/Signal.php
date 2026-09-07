@@ -19,7 +19,12 @@ use Illuminate\Support\Carbon;
  * @property int|null $parent_id
  * @property int $user_id
  * @property SignalType $type
+ * @property string|null $title
  * @property string|null $body
+ * @property array<string, mixed>|null $payload
+ * @property float|null $latitude
+ * @property float|null $longitude
+ * @property string|null $place_id
  * @property string|null $link_url
  * @property string|null $link_title
  * @property string|null $link_description
@@ -32,7 +37,7 @@ use Illuminate\Support\Carbon;
  * @property bool|int|null $saved
  * @property bool|int|null $reported
  */
-#[Fillable(['user_id', 'parent_id', 'type', 'body', 'link_url', 'link_title', 'link_description', 'link_image'])]
+#[Fillable(['user_id', 'parent_id', 'type', 'title', 'body', 'payload', 'latitude', 'longitude', 'place_id', 'link_url', 'link_title', 'link_description', 'link_image'])]
 #[Hidden(['id'])]
 class Signal extends Model
 {
@@ -48,6 +53,9 @@ class Signal extends Model
     {
         return [
             'type' => SignalType::class,
+            'payload' => 'array',
+            'latitude' => 'float',
+            'longitude' => 'float',
         ];
     }
 
@@ -134,6 +142,14 @@ class Signal extends Model
     public function reports(): HasMany
     {
         return $this->hasMany(SignalReport::class);
+    }
+
+    /**
+     * @return HasMany<PollVote, $this>
+     */
+    public function pollVotes(): HasMany
+    {
+        return $this->hasMany(PollVote::class);
     }
 
     protected static function booted(): void

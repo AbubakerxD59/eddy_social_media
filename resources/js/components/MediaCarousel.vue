@@ -77,7 +77,11 @@ const cardStyle = (id: number) => {
 const bindImage = (id: number, el: unknown) => {
     const image = el instanceof HTMLImageElement ? el : null;
 
-    if (image?.complete && image.naturalWidth > 0) {
+    if (!image || dimensions.value[id]) {
+        return;
+    }
+
+    if (image.complete && image.naturalWidth > 0) {
         setDimensions(id, image.naturalWidth, image.naturalHeight);
     }
 };
@@ -91,15 +95,15 @@ const onImageLoad = (id: number, event: Event) => {
 };
 
 const setPlaying = (id: number, playing: boolean) => {
-    const next = new Set(playingIds.value);
+    const isPlaying = playingIds.value.includes(id);
 
-    if (playing) {
-        next.add(id);
-    } else {
-        next.delete(id);
+    if (playing === isPlaying) {
+        return;
     }
 
-    playingIds.value = [...next];
+    playingIds.value = playing
+        ? [...playingIds.value, id]
+        : playingIds.value.filter((current) => current !== id);
 };
 
 const applyMute = (id: number, muted: boolean) => {
@@ -203,21 +207,36 @@ const syncPlayback = (id: number) => {
     playVideo(id);
 };
 
-const bindVideo = (id: number, el: unknown) => {
-    const video = el instanceof HTMLVideoElement ? el : null;
+const unbindVideo = (id: number) => {
     const previous = videos.get(id);
 
-    if (previous && previous !== video) {
-        observer?.unobserve(previous);
-        videos.delete(id);
-        visibleIds.delete(id);
-        setPlaying(id, false);
-    }
-
-    if (!video) {
+    if (!previous) {
         return;
     }
 
+    observer?.unobserve(previous);
+    videos.delete(id);
+    visibleIds.delete(id);
+};
+
+const bindVideo = (id: number, el: unknown) => {
+    const video = el instanceof HTMLVideoElement ? el : null;
+
+    if (!video) {
+        const previous = videos.get(id);
+
+        if (previous && !previous.isConnected) {
+            unbindVideo(id);
+        }
+
+        return;
+    }
+
+    if (videos.get(id) === video) {
+        return;
+    }
+
+    unbindVideo(id);
     videos.set(id, video);
     observer?.observe(video);
 

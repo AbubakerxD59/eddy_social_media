@@ -40,13 +40,13 @@ const emit = defineEmits<{
         </DialogTrigger>
         <DialogContent
             :show-close-button="false"
-            class="gap-0 overflow-hidden rounded-[20px] border-neutral-700 bg-neutral-800 p-0 text-white shadow-2xl sm:max-w-80"
+            class="z-[80] gap-0 overflow-hidden rounded-[20px] p-0 sm:max-w-80"
         >
             <div class="px-6 py-6 text-center">
-                <DialogTitle class="text-[17px] font-semibold text-white">
+                <DialogTitle class="text-foreground text-[17px] font-semibold">
                     {{ title }}
                 </DialogTitle>
-                <DialogDescription class="mt-2 text-sm leading-relaxed text-neutral-400">
+                <DialogDescription class="text-muted-foreground mt-2 text-sm leading-relaxed">
                     {{ description }}
                 </DialogDescription>
 
@@ -57,7 +57,7 @@ const emit = defineEmits<{
 
             <div
                 v-if="showFooter || $slots.footer"
-                class="grid grid-cols-2 border-t border-neutral-700"
+                class="border-border grid grid-cols-2 border-t"
             >
                 <slot name="footer">
                     <DialogClose as-child>
@@ -65,7 +65,7 @@ const emit = defineEmits<{
                             type="button"
                             variant="ghost"
                             :disabled="loading"
-                            class="h-auto rounded-none bg-transparent py-3.5 text-[17px] font-medium text-white hover:bg-white/5 hover:text-white"
+                            class="text-foreground hover:bg-accent hover:text-foreground h-auto rounded-none bg-transparent py-3.5 text-[17px] font-medium"
                         >
                             {{ cancelLabel }}
                         </Button>
@@ -74,7 +74,7 @@ const emit = defineEmits<{
                         type="button"
                         variant="ghost"
                         :loading="loading"
-                        class="h-auto rounded-none border-l border-neutral-700 bg-transparent py-3.5 text-[17px] font-medium text-red-500 hover:bg-white/5 hover:text-red-500"
+                        class="text-destructive hover:text-destructive hover:bg-accent h-auto rounded-none border-l border-border bg-transparent py-3.5 text-[17px] font-medium"
                         @click="emit('confirm')"
                     >
                         {{ confirmLabel }}

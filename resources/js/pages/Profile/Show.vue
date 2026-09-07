@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { Head, Link } from '@inertiajs/vue3';
+import { Deferred, Head, InfiniteScroll, Link } from '@inertiajs/vue3';
 import { computed } from 'vue';
 import SignalCard from '@/components/SignalCard.vue';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import { getInitials } from '@/composables/useInitials';
 import { edit } from '@/routes/profile';
 import type { FeedSignal, Paginator, PublicUser } from '@/types/social';
@@ -58,18 +59,28 @@ const items = computed(() => props.signals?.data ?? []);
             </p>
         </div>
 
-        <SignalCard
-            v-for="(signal, index) in items"
-            :key="signal.id"
-            :signal="signal"
-            :show-line="index < items.length - 1"
-        />
+        <Deferred data="signals">
+            <template #fallback>
+                <div class="space-y-4 px-4 py-6">
+                    <Skeleton v-for="n in 3" :key="n" class="h-28 w-full rounded-2xl" />
+                </div>
+            </template>
 
-        <div
-            v-if="items.length === 0"
-            class="text-muted-foreground px-4 py-16 text-center text-sm"
-        >
-            No signals yet.
-        </div>
+            <InfiniteScroll data="signals" :buffer="400">
+                <SignalCard
+                    v-for="(signal, index) in items"
+                    :key="signal.id"
+                    :signal="signal"
+                    :show-line="index < items.length - 1"
+                />
+
+                <div
+                    v-if="items.length === 0"
+                    class="text-muted-foreground px-4 py-16 text-center text-sm"
+                >
+                    No signals yet.
+                </div>
+            </InfiniteScroll>
+        </Deferred>
     </div>
 </template>

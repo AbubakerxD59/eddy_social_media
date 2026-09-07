@@ -5,8 +5,11 @@ namespace App\Http\Controllers;
 use App\Enums\MediaType;
 use App\Enums\SignalType;
 use App\Http\Requests\StoreSignalRequest;
+use App\Http\Requests\VotePollRequest;
 use App\Models\Signal;
 use App\Models\SignalMedia;
+use App\Models\SignalUpload;
+use App\Services\GooglePlacesService;
 use App\Services\LinkPreviewService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -24,42 +27,51 @@ class SignalController extends Controller
             ->whereKey($signal->getKey())
             ->firstOrFail();
 
-        $replies = FeedController::excludeMutedAuthors(FeedController::feedQuery())
-            ->where('parent_id', $signal->getKey())
-            ->latest()
-            ->get()
-            ->map(fn (Signal $reply) => FeedController::present($reply));
-
         return Inertia::render('Signals/Show', [
             'signal' => FeedController::present($signal),
-            'replies' => $replies,
+            'replies' => Inertia::defer(function () use ($signal) {
+                return FeedController::excludeMutedAuthors(FeedController::feedQuery())
+                    ->where('parent_id', $signal->getKey())
+                    ->latest()
+                    ->get()
+                    ->map(fn (Signal $reply) => FeedController::present($reply))
+                    ->values()
+                    ->all();
+            }, 'replies'),
         ]);
     }
 
-    public function store(StoreSignalRequest $request, LinkPreviewService $previews): RedirectResponse
+    public function store(StoreSignalRequest $request, LinkPreviewService $previews, GooglePlacesService $places): RedirectResponse
     {
         $type = SignalType::from($request->validated('type'));
         $parent = $this->parentFromRequest($request);
 
-        $signal = DB::transaction(function () use ($request, $type, $previews, $parent) {
+        $signal = DB::transaction(function () use ($request, $type, $previews, $places, $parent) {
             $link = $this->linkPayload($request, $type, $previews);
+            $place = $this->placePayload($request, $type, $places);
 
             $signal = Signal::query()->create([
                 'user_id' => $request->user()->id,
                 'parent_id' => $parent?->getKey(),
                 'type' => $type,
+                'title' => $this->titleFor($request, $type),
                 'body' => $request->validated('body'),
+                'payload' => $this->payloadFor($request, $type, $place['location']),
+                'latitude' => $place['latitude'],
+                'longitude' => $place['longitude'],
+                'place_id' => $place['place_id'],
                 ...$link,
             ]);
 
             $this->storeMedia($signal, $type, $request->file('media', []));
+            $this->attachUploads($signal, $type, $request->validated('media_ids', []));
 
             return $signal;
         });
 
         Inertia::flash('toast', [
             'type' => 'success',
-            'message' => $parent ? __('Reply is live.') : __('Your signal is live.'),
+            'message' => $parent ? __('Reply is live.') : __($type->liveMessage()),
         ]);
 
         if ($parent) {
@@ -124,6 +136,28 @@ class SignalController extends Controller
         ]);
     }
 
+    public function vote(VotePollRequest $request, Signal $signal): JsonResponse
+    {
+        abort_unless($signal->type === SignalType::Poll, 404);
+
+        $optionId = $request->validated('option_id');
+        $options = collect($signal->payload['options'] ?? []);
+
+        abort_unless($options->contains(fn (mixed $option): bool => is_array($option) && ($option['id'] ?? null) === $optionId), 422);
+
+        $signal->pollVotes()->updateOrCreate(
+            ['user_id' => $request->user()->id],
+            ['option_id' => $optionId],
+        );
+
+        $signal->load('pollVotes');
+
+        return response()->json([
+            'id' => $signal->public_id,
+            'poll' => FeedController::presentPoll($signal),
+        ]);
+    }
+
     public function destroy(Signal $signal): RedirectResponse
     {
         abort_unless($signal->user_id === auth()->id(), 403);
@@ -152,12 +186,100 @@ class SignalController extends Controller
         return Signal::query()->where('public_id', $parentId)->first();
     }
 
+    private function titleFor(StoreSignalRequest $request, SignalType $type): ?string
+    {
+        if (! in_array($type, [SignalType::Need, SignalType::Opportunity], true)) {
+            return null;
+        }
+
+        $title = $request->validated('title');
+
+        return is_string($title) && $title !== '' ? $title : null;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function payloadFor(StoreSignalRequest $request, SignalType $type, ?string $location): ?array
+    {
+        $payload = match ($type) {
+            SignalType::Need => array_filter([
+                'budget' => $request->validated('budget'),
+                'timeline' => $request->validated('timeline'),
+                'location' => $location,
+                'skills' => $request->csvList('skills'),
+            ]),
+            SignalType::Opportunity => array_filter([
+                'project_value' => $request->validated('project_value'),
+                'timeline' => $request->validated('timeline'),
+                'location' => $location,
+                'trades' => $request->csvList('trades'),
+            ]),
+            SignalType::Poll => [
+                'options' => array_map(
+                    fn (string $text, int $index): array => [
+                        'id' => (string) ($index + 1),
+                        'text' => $text,
+                    ],
+                    $request->pollOptions(),
+                    array_keys($request->pollOptions()),
+                ),
+            ],
+            SignalType::Drop => [],
+        };
+
+        return $payload === [] ? null : $payload;
+    }
+
+    /**
+     * @return array{location: string|null, latitude: float|null, longitude: float|null, place_id: string|null}
+     */
+    private function placePayload(StoreSignalRequest $request, SignalType $type, GooglePlacesService $places): array
+    {
+        $empty = [
+            'location' => null,
+            'latitude' => null,
+            'longitude' => null,
+            'place_id' => null,
+        ];
+
+        if (! in_array($type, [SignalType::Need, SignalType::Opportunity], true)) {
+            return $empty;
+        }
+
+        $placeId = $request->validated('place_id');
+
+        if (is_string($placeId) && $placeId !== '') {
+            $details = $places->details($placeId);
+
+            if ($details !== null) {
+                return [
+                    'location' => $details['label'],
+                    'latitude' => $details['latitude'],
+                    'longitude' => $details['longitude'],
+                    'place_id' => $details['place_id'],
+                ];
+            }
+        }
+
+        $location = $request->validated('location');
+        $latitude = $request->validated('latitude');
+        $longitude = $request->validated('longitude');
+
+        return [
+            'location' => is_string($location) && $location !== '' ? $location : null,
+            'latitude' => is_numeric($latitude) ? (float) $latitude : null,
+            'longitude' => is_numeric($longitude) ? (float) $longitude : null,
+            'place_id' => is_string($placeId) && $placeId !== '' ? $places->normalizePlaceId($placeId) : null,
+        ];
+    }
+
     /**
      * @return array{link_url: string|null, link_title: string|null, link_description: string|null, link_image: string|null}
      */
     private function linkPayload(StoreSignalRequest $request, SignalType $type, LinkPreviewService $previews): array
     {
-        if ($type !== SignalType::Link) {
+        if (! $type->allowsLink() || blank($request->validated('link_url'))) {
             return [
                 'link_url' => null,
                 'link_title' => null,
@@ -182,7 +304,7 @@ class SignalController extends Controller
      */
     private function storeMedia(Signal $signal, SignalType $type, array|UploadedFile|null $files): void
     {
-        if (! in_array($type, [SignalType::Images, SignalType::Video], true)) {
+        if (! $type->allowsMedia()) {
             return;
         }
 
@@ -190,14 +312,56 @@ class SignalController extends Controller
 
         foreach (array_values($files) as $index => $file) {
             $path = $file->store('signals/'.$signal->public_id, 'public');
+            $mime = (string) $file->getMimeType();
 
             SignalMedia::query()->create([
                 'signal_id' => $signal->getKey(),
-                'kind' => $type === SignalType::Video ? MediaType::Video : MediaType::Image,
+                'kind' => str_starts_with($mime, 'video/') ? MediaType::Video : MediaType::Image,
                 'path' => $path,
                 'mime_type' => $file->getMimeType(),
                 'position' => $index,
             ]);
+        }
+    }
+
+    /**
+     * @param  array<int, mixed>|null  $ids
+     */
+    private function attachUploads(Signal $signal, SignalType $type, mixed $ids): void
+    {
+        if (! $type->allowsMedia() || ! is_array($ids) || $ids === []) {
+            return;
+        }
+
+        $ids = array_values(array_filter(
+            array_map(fn (mixed $id): string => is_string($id) ? $id : '', $ids),
+        ));
+
+        $uploads = SignalUpload::query()
+            ->where('user_id', $signal->user_id)
+            ->whereIn('public_id', $ids)
+            ->get()
+            ->sortBy(fn (SignalUpload $upload): int => (int) array_search($upload->public_id, $ids, true))
+            ->values();
+
+        $position = $signal->media()->count();
+
+        foreach ($uploads as $upload) {
+            $filename = basename($upload->path);
+            $destination = 'signals/'.$signal->public_id.'/'.$filename;
+
+            Storage::disk('public')->move($upload->path, $destination);
+
+            SignalMedia::query()->create([
+                'signal_id' => $signal->getKey(),
+                'kind' => $upload->kind,
+                'path' => $destination,
+                'mime_type' => $upload->mime_type,
+                'position' => $position,
+            ]);
+
+            $position++;
+            $upload->delete();
         }
     }
 }

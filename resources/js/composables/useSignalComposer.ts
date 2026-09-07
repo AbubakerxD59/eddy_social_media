@@ -1,152 +1,170 @@
 import { useForm, usePage } from '@inertiajs/vue3';
-import { computed, nextTick, ref } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
+import { firstCaptionUrl, urlsMatch } from '@/lib/captionUrl';
 import { csrfHeaders } from '@/lib/csrf';
-import { notifyError, notifySuccess } from '@/lib/notify';
+import { htmlToPlainText } from '@/lib/htmlBody';
+import { notifyError, notifyFormError, notifySuccess } from '@/lib/notify';
+import { signalTypeMeta } from '@/lib/signalTypes';
+import { formatTimelineDuration, type TimelineUnit } from '@/lib/timeline';
 import type { SignalLink, SignalType } from '@/types/social';
 
-export function useSignalComposer(options: { onSuccess?: () => void; parentId?: string } = {}) {
+export type MediaKind = 'none' | 'files';
+
+export function useSignalComposer(options: { onSuccess?: () => void; parentId?: string; initialType?: SignalType } = {}) {
     const user = computed(() => usePage().props.auth.user);
-    const imageInput = ref<HTMLInputElement | null>(null);
-    const videoInput = ref<HTMLInputElement | null>(null);
-    const bodyInput = ref<HTMLTextAreaElement | null>(null);
+    const bodyEditor = ref<{ focus: () => void } | null>(null);
+    const titleInput = ref<HTMLInputElement | null>(null);
     const previewing = ref(false);
     const preview = ref<SignalLink | null>(null);
-    const localPreviews = ref<string[]>([]);
+    const previewSourceUrl = ref<string | null>(null);
+    const mediaKind = ref<MediaKind>('none');
+    const mediaUploading = ref(false);
 
     const form = useForm({
-        type: 'quote' as SignalType,
+        type: (options.initialType ?? 'drop') as SignalType,
         parent_id: options.parentId ?? '',
+        title: '',
         body: '',
+        budget: '',
+        timeline: '',
+        timeline_amount: '',
+        timeline_unit: 'days' as TimelineUnit,
+        location: '',
+        latitude: null as number | null,
+        longitude: null as number | null,
+        place_id: '',
+        skills: '',
+        project_value: '',
+        trades: '',
+        poll_options: ['', ''] as string[],
         link_url: '',
         link_title: '',
         link_description: '',
         link_image: '',
-        media: [] as File[],
+        media_ids: [] as string[],
     });
 
+    const isReply = computed(() => Boolean(options.parentId));
+    const meta = computed(() => signalTypeMeta(form.type));
+
+    const bodyText = computed(() => htmlToPlainText(form.body));
+
     const canSubmit = computed(() => {
-        if (form.processing) {
+        if (form.processing || mediaUploading.value) {
             return false;
         }
 
-        if (form.type === 'quote') {
-            return form.body.trim().length > 0;
+        if (form.type === 'need' || form.type === 'opportunity') {
+            return form.title.trim().length > 0;
         }
 
-        if (form.type === 'images' || form.type === 'video') {
-            return form.media.length > 0;
+        if (form.type === 'poll') {
+            return bodyText.value.length > 0 && form.poll_options.filter((option) => option.trim()).length >= 2;
         }
 
-        return form.link_url.trim().length > 0;
+        return bodyText.value.length > 0 || form.media_ids.length > 0;
     });
+
+    const detectedUrl = computed(
+        () => firstCaptionUrl(bodyText.value) ?? firstCaptionUrl(form.title),
+    );
+
+    const showLinkPreviewButton = computed(
+        () => Boolean(detectedUrl.value) && !preview.value,
+    );
 
     const placeholder = computed(() => {
-        if (form.type === 'quote') {
-            return options.parentId ? 'Reply…' : "What's new?";
+        if (isReply.value) {
+            return 'Reply…';
         }
 
-        return 'Add a caption (optional)';
+        return meta.value.placeholder;
     });
 
-    const resizeBody = () => {
-        const el = bodyInput.value;
-
-        if (!el) {
-            return;
-        }
-
-        el.style.height = 'auto';
-        el.style.height = `${Math.max(el.scrollHeight, 72)}px`;
-    };
+    const submitLabel = computed(() => (isReply.value ? 'Reply' : meta.value.submit));
 
     const focusBody = () => {
-        void nextTick(() => {
-            resizeBody();
-            bodyInput.value?.focus();
-        });
+        void nextTick(() => bodyEditor.value?.focus());
     };
 
-    const clearAttachments = () => {
-        form.media = [];
-        form.link_url = '';
+    const focusTitle = () => {
+        void nextTick(() => titleInput.value?.focus());
+    };
+
+    const clearPreview = () => {
+        preview.value = null;
+        previewSourceUrl.value = null;
         form.link_title = '';
         form.link_description = '';
         form.link_image = '';
-        preview.value = null;
-        localPreviews.value.forEach((url) => URL.revokeObjectURL(url));
-        localPreviews.value = [];
+    };
+
+    const clearLink = () => {
+        form.link_url = '';
+        clearPreview();
+    };
+
+    watch(
+        [detectedUrl, () => form.type],
+        ([url, type]) => {
+            if (!url) {
+                clearLink();
+                return;
+            }
+
+            if (previewSourceUrl.value && !urlsMatch(previewSourceUrl.value, url)) {
+                clearPreview();
+            }
+
+            if (type === 'drop') {
+                form.link_url = preview.value?.url ?? url;
+                form.link_title = preview.value?.title ?? '';
+                form.link_description = preview.value?.description ?? '';
+                form.link_image = preview.value?.image ?? '';
+                return;
+            }
+
+            form.link_url = '';
+            form.link_title = '';
+            form.link_description = '';
+            form.link_image = '';
+        },
+    );
+
+    const clearMedia = () => {
+        form.media_ids = [];
+
+        if (mediaKind.value === 'files') {
+            mediaKind.value = 'none';
+        }
     };
 
     const setType = (type: SignalType) => {
-        if (form.type === type) {
-            if (type === 'images') {
-                imageInput.value?.click();
-                return;
-            }
-
-            if (type === 'video') {
-                videoInput.value?.click();
-                return;
-            }
-
-            if (type === 'link') {
-                form.type = 'quote';
-                clearAttachments();
-            }
-
+        if (isReply.value) {
             return;
         }
 
         form.type = type;
-        clearAttachments();
 
-        if (type === 'images') {
-            void nextTick(() => imageInput.value?.click());
-        }
-
-        if (type === 'video') {
-            void nextTick(() => videoInput.value?.click());
-        }
-    };
-
-    const onImages = (event: Event) => {
-        const input = event.target as HTMLInputElement;
-        const files = Array.from(input.files ?? []).slice(0, 6);
-        input.value = '';
-
-        if (files.length === 0) {
-            if (form.media.length === 0) {
-                form.type = 'quote';
-            }
-
+        if (type === 'poll') {
+            mediaKind.value = 'none';
+            clearMedia();
+            focusBody();
             return;
         }
 
-        form.media = files;
-        localPreviews.value.forEach((url) => URL.revokeObjectURL(url));
-        localPreviews.value = files.map((file) => URL.createObjectURL(file));
-    };
-
-    const onVideo = (event: Event) => {
-        const input = event.target as HTMLInputElement;
-        const files = Array.from(input.files ?? []).slice(0, 1);
-        input.value = '';
-
-        if (files.length === 0) {
-            if (form.media.length === 0) {
-                form.type = 'quote';
-            }
-
+        if (type === 'need' || type === 'opportunity') {
+            focusTitle();
             return;
         }
 
-        form.media = files;
-        localPreviews.value.forEach((url) => URL.revokeObjectURL(url));
-        localPreviews.value = files.map((file) => URL.createObjectURL(file));
+        focusBody();
     };
 
     const fetchPreview = async () => {
-        if (!form.link_url.trim()) {
+        const url = detectedUrl.value;
+
+        if (!url || previewing.value) {
             return;
         }
 
@@ -157,7 +175,7 @@ export function useSignalComposer(options: { onSuccess?: () => void; parentId?: 
                 method: 'POST',
                 credentials: 'same-origin',
                 headers: csrfHeaders(),
-                body: JSON.stringify({ url: form.link_url }),
+                body: JSON.stringify({ url }),
             });
 
             if (!response.ok) {
@@ -167,10 +185,15 @@ export function useSignalComposer(options: { onSuccess?: () => void; parentId?: 
 
             const data = (await response.json()) as SignalLink;
             preview.value = data;
-            form.link_url = data.url;
-            form.link_title = data.title ?? '';
-            form.link_description = data.description ?? '';
-            form.link_image = data.image ?? '';
+            previewSourceUrl.value = url;
+
+            if (form.type === 'drop') {
+                form.link_url = data.url;
+                form.link_title = data.title ?? '';
+                form.link_description = data.description ?? '';
+                form.link_image = data.image ?? '';
+            }
+
             notifySuccess('Link preview ready.');
         } catch {
             notifyError('Could not fetch a preview for that link.');
@@ -179,42 +202,90 @@ export function useSignalComposer(options: { onSuccess?: () => void; parentId?: 
         }
     };
 
+    const addPollOption = () => {
+        if (form.poll_options.length >= 4) {
+            return;
+        }
+
+        form.poll_options.push('');
+    };
+
+    const removePollOption = (index: number) => {
+        if (form.poll_options.length <= 2) {
+            return;
+        }
+
+        form.poll_options.splice(index, 1);
+    };
+
     const resetComposer = () => {
         form.reset();
-        form.type = 'quote';
+        form.type = 'drop';
         form.parent_id = options.parentId ?? '';
-        clearAttachments();
-        void nextTick(resizeBody);
+        form.poll_options = ['', ''];
+        form.media_ids = [];
+        mediaKind.value = 'none';
+        mediaUploading.value = false;
+        clearLink();
     };
 
     const submit = () => {
-        form.post('/signals', {
-            forceFormData: true,
+        if (!canSubmit.value) {
+            return;
+        }
+
+        form.transform((data) => {
+            const isDrop = data.type === 'drop';
+            const hasPlace = data.type === 'need' || data.type === 'opportunity';
+            const linkUrl = isDrop ? (data.link_url || detectedUrl.value || '') : '';
+            const { timeline_amount, timeline_unit, ...rest } = data;
+
+            return {
+                ...rest,
+                poll_options: data.type === 'poll' ? data.poll_options.filter((option) => option.trim()) : [],
+                link_url: linkUrl,
+                link_title: isDrop ? data.link_title : '',
+                link_description: isDrop ? data.link_description : '',
+                link_image: isDrop ? data.link_image : '',
+                timeline: hasPlace ? formatTimelineDuration(timeline_amount, timeline_unit) : '',
+                location: hasPlace ? data.location : '',
+                latitude: hasPlace ? data.latitude : null,
+                longitude: hasPlace ? data.longitude : null,
+                place_id: hasPlace ? data.place_id : '',
+            };
+        }).post('/signals', {
             preserveScroll: true,
             onSuccess: () => {
                 resetComposer();
                 options.onSuccess?.();
             },
+            onError: (errors) => notifyFormError(errors),
+            onFinish: () => form.transform((data) => data),
         });
     };
 
     return {
         user,
         form,
-        imageInput,
-        videoInput,
-        bodyInput,
+        bodyEditor,
+        titleInput,
         previewing,
         preview,
-        localPreviews,
+        mediaKind,
+        mediaUploading,
+        isReply,
+        meta,
         canSubmit,
+        showLinkPreviewButton,
         placeholder,
-        resizeBody,
+        submitLabel,
         focusBody,
+        focusTitle,
         setType,
-        onImages,
-        onVideo,
+        clearMedia,
         fetchPreview,
+        addPollOption,
+        removePollOption,
         resetComposer,
         submit,
     };

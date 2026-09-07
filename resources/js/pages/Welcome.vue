@@ -37,14 +37,14 @@ const features = [
     <div class="bg-background min-h-screen">
         <header class="mx-auto flex w-full max-w-5xl items-center justify-between px-6 py-6">
             <div class="flex items-center gap-2 font-semibold">
-                <AppLogoIcon class="size-7 fill-current" />
+                <AppLogoIcon class="size-7 fill-current text-primary" />
                 Eddy
             </div>
             <nav class="flex items-center gap-3 text-sm">
                 <Link
                     v-if="$page.props.auth.user"
                     :href="dashboard()"
-                    class="rounded-md border px-4 py-1.5"
+                    class="rounded-lg border px-4 py-1.5"
                 >
                     Open feed
                 </Link>
@@ -52,7 +52,7 @@ const features = [
                     <Link :href="login()" class="px-3 py-1.5">Log in</Link>
                     <Link
                         :href="register()"
-                        class="bg-primary text-primary-foreground rounded-md px-4 py-1.5"
+                        class="bg-primary text-primary-foreground rounded-lg px-4 py-1.5"
                     >
                         Create account
                     </Link>
@@ -73,11 +73,11 @@ const features = [
             <div class="mt-8 flex gap-3">
                 <Link
                     :href="register()"
-                    class="bg-primary text-primary-foreground rounded-md px-5 py-2.5 text-sm font-medium"
+                    class="bg-primary text-primary-foreground rounded-lg px-5 py-2.5 text-sm font-medium"
                 >
                     Join Eddy
                 </Link>
-                <Link :href="login()" class="rounded-md border px-5 py-2.5 text-sm">
+                <Link :href="login()" class="rounded-lg border px-5 py-2.5 text-sm">
                     Sign in
                 </Link>
             </div>
@@ -86,7 +86,7 @@ const features = [
                 <article
                     v-for="feature in features"
                     :key="feature.title"
-                    class="rounded-xl border p-5"
+                    class="bg-card rounded-xl border p-5"
                 >
                     <component :is="feature.icon" class="mb-3 size-5" />
                     <h2 class="font-medium">{{ feature.title }}</h2>
