@@ -172,7 +172,7 @@ class FeedController extends Controller
                 $origin['longitude'],
             );
 
-            self::applyRadiusFilter($query, $origin['latitude'], $origin['longitude'], $radiusKm);
+            self::applyNearbyOrUnlocatedFilter($query, $origin['latitude'], $origin['longitude'], $radiusKm);
             self::applyDistanceOrder($query, $origin['latitude'], $origin['longitude']);
         } else {
             $query->latest();
@@ -382,6 +382,21 @@ class FeedController extends Controller
         }
 
         return $radius;
+    }
+
+    /**
+     * @param  Builder<Signal>  $query
+     * @return Builder<Signal>
+     */
+    public static function applyNearbyOrUnlocatedFilter(Builder $query, float $latitude, float $longitude, int $radiusKm): Builder
+    {
+        return $query->where(function (Builder $feed) use ($latitude, $longitude, $radiusKm): void {
+            $feed->where(function (Builder $unlocated): void {
+                $unlocated->whereNull('latitude')->orWhereNull('longitude');
+            })->orWhere(function (Builder $located) use ($latitude, $longitude, $radiusKm): void {
+                self::applyRadiusFilter($located, $latitude, $longitude, $radiusKm);
+            });
+        });
     }
 
     /**

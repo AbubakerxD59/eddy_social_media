@@ -78,7 +78,7 @@ test('the feed ranks nearby signals using the users stored location', function (
     $withinRadius = Signal::factory()->for($user)->need()->at(27.9506, -82.4572, 'Tampa, FL')->create([
         'created_at' => now()->subMinutes(30),
     ]);
-    Signal::factory()->for($user)->drop()->create([
+    $unlocated = Signal::factory()->for($user)->drop()->create([
         'created_at' => now()->addMinute(),
     ]);
 
@@ -89,9 +89,10 @@ test('the feed ranks nearby signals using the users stored location', function (
             ->where('viewerLatitude', 28.54)
             ->where('viewerLongitude', -81.38)
             ->loadDeferredProps('feed', fn ($page) => $page
-                ->has('signals.data', 2)
+                ->has('signals.data', 3)
                 ->where('signals.data.0.id', $near->public_id)
-                ->where('signals.data.1.id', $withinRadius->public_id)));
+                ->where('signals.data.1.id', $withinRadius->public_id)
+                ->where('signals.data.2.id', $unlocated->public_id)));
 });
 
 test('users can pick a labeled viewing location', function () {
@@ -205,14 +206,16 @@ test('the feed expands the search radius when nothing is nearby', function () {
     ]);
 
     $far = Signal::factory()->for($user)->need()->at(40.7128, -74.006, 'New York, NY')->create();
+    $unlocated = Signal::factory()->for($user)->drop()->create();
 
     $this->actingAs($user)
         ->get(route('dashboard'))
         ->assertOk()
         ->assertInertia(fn ($page) => $page
             ->loadDeferredProps('feed', fn ($page) => $page
-                ->has('signals.data', 1)
-                ->where('signals.data.0.id', $far->public_id)));
+                ->has('signals.data', 2)
+                ->where('signals.data.0.id', $far->public_id)
+                ->where('signals.data.1.id', $unlocated->public_id)));
 });
 
 test('the feed paginates twenty nearby signals at a time', function () {
