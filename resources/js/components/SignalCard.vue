@@ -81,6 +81,10 @@ onMounted(() => {
     }
 });
 
+const openEditor = () => {
+    editing.value = true;
+};
+
 const remove = () => {
     deleting.value = true;
 
@@ -126,11 +130,13 @@ const remove = () => {
                 </span>
             </Link>
 
-            <SignalMoreMenu
-                :signal="signal"
-                @edit="editing = true"
-                @delete="confirmOpen = true"
-            />
+            <div class="shrink-0" @click.stop>
+                <SignalMoreMenu
+                    :signal="signal"
+                    @edit="openEditor"
+                    @delete="confirmOpen = true"
+                />
+            </div>
         </div>
 
         <div class="mt-3 space-y-3">
@@ -195,15 +201,7 @@ const remove = () => {
             <SignalActions :signal="signal" />
         </div>
 
-        <SignalComposer
-            v-if="editing"
-            :editing="signal"
-            @close="editing = false"
-            @created="editing = false"
-        />
-
         <ConfirmDeleteDialog
-            v-if="signal.can_delete"
             v-model:open="confirmOpen"
             title="Delete signal?"
             description="If you delete this signal, you won't be able to restore it."
@@ -212,4 +210,11 @@ const remove = () => {
             @confirm="remove"
         />
     </article>
+
+    <SignalComposer
+        v-if="editing"
+        :editing="signal"
+        @close="editing = false"
+        @created="editing = false"
+    />
 </template>

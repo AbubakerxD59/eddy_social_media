@@ -25,6 +25,17 @@ const emit = defineEmits<{
 
 const page = usePage();
 const user = computed(() => page.props.auth.user);
+const isOwner = computed(() => {
+    if (signal.can_edit || signal.can_delete) {
+        return true;
+    }
+
+    if (!user.value) {
+        return false;
+    }
+
+    return user.value.id === signal.author.id || user.value.username === signal.author.username;
+});
 const saved = ref(signal.saved);
 const reported = ref(signal.reported);
 const authorMuted = ref(signal.author_muted);
@@ -169,7 +180,8 @@ const toggleMute = () => {
         </DropdownMenuTrigger>
         <DropdownMenuContent
             align="end"
-            class="rounded-[20px] p-2"
+            :collision-padding="16"
+            class="min-w-44 rounded-[20px] p-2"
         >
             <DropdownMenuItem
                 :disabled="saving"
@@ -205,20 +217,19 @@ const toggleMute = () => {
                 <BellOff v-else />
                 {{ authorMuted ? 'Unmute' : 'Mute' }}
             </DropdownMenuItem>
-            <template v-if="signal.can_edit || signal.can_delete">
+            <template v-if="isOwner">
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
-                    v-if="signal.can_edit"
                     class="rounded-[10px]"
-                    @click="emit('edit')"
+                    @select="emit('edit')"
                 >
                     <Pencil />
                     Edit
                 </DropdownMenuItem>
                 <DropdownMenuItem
-                    v-if="signal.can_delete"
-                    class="text-destructive focus:text-destructive rounded-[10px]"
-                    @click="emit('delete')"
+                    variant="destructive"
+                    class="rounded-[10px]"
+                    @select="emit('delete')"
                 >
                     <Trash2 />
                     Delete
