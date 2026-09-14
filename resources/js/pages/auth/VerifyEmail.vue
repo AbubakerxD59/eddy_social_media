@@ -32,8 +32,7 @@ watchEffect(() => {
             v-if="status === 'verification-link-sent'"
             class="text-sm font-medium text-green-600"
         >
-            A new verification link has been sent to
-            <span class="text-foreground font-semibold break-all">{{ email }}</span>.
+            A new verification link has been sent.
         </div>
 
         <Form
