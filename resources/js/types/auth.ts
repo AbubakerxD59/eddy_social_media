@@ -14,6 +14,7 @@ export type User = {
     bio?: string | null;
     website?: string | null;
     avatar?: string | null;
+    cover?: string | null;
     email_verified_at: string | null;
     two_factor_enabled?: boolean;
     created_at: string;

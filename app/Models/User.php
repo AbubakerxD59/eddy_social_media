@@ -41,7 +41,9 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property string|null $bio
  * @property string|null $website
  * @property string|null $avatar_path
+ * @property string|null $cover_path
  * @property string|null $avatar_url
+ * @property string|null $cover_url
  * @property float|null $latitude
  * @property float|null $longitude
  * @property Carbon|null $location_updated_at
@@ -75,6 +77,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
     'bio',
     'website',
     'avatar_path',
+    'cover_path',
 ])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token', 'latitude', 'longitude', 'location_updated_at', 'location_label', 'location_manual'])]
 class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
@@ -135,6 +138,14 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
     public function mutes(): HasMany
     {
         return $this->hasMany(UserMute::class);
+    }
+
+    /**
+     * @return HasMany<UserNotification, $this>
+     */
+    public function notifications(): HasMany
+    {
+        return $this->hasMany(UserNotification::class);
     }
 
     /**
@@ -265,6 +276,20 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
     }
 
     /**
+     * @return Attribute<string|null, never>
+     */
+    protected function coverUrl(): Attribute
+    {
+        return Attribute::get(function (): ?string {
+            if (! $this->cover_path) {
+                return null;
+            }
+
+            return Storage::disk('public')->url($this->cover_path);
+        });
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function toInertia(): array
@@ -283,6 +308,7 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
             'bio' => $this->bio,
             'website' => $this->website,
             'avatar' => $this->avatar_url,
+            'cover' => $this->cover_url,
             'email_verified_at' => $this->email_verified_at,
             'two_factor_enabled' => $this->two_factor_confirmed_at !== null,
             'created_at' => $this->created_at,
@@ -304,6 +330,7 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
             'bio' => $this->bio,
             'website' => $this->website,
             'avatar' => $this->avatar_url,
+            'cover' => $this->cover_url,
             'created_at' => $this->created_at,
         ];
     }

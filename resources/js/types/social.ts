@@ -7,6 +7,7 @@ export type PublicUser = {
     bio?: string | null;
     website?: string | null;
     avatar?: string | null;
+    cover?: string | null;
     created_at?: string | null;
 };
 

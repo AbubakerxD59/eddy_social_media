@@ -3,6 +3,7 @@ import { Deferred, Form, Head, InfiniteScroll, Link } from '@inertiajs/vue3';
 import TalentFields from '@/components/TalentFields.vue';
 import InputError from '@/components/InputError.vue';
 import MoneyInput from '@/components/MoneyInput.vue';
+import ProfileHoverCard from '@/components/ProfileHoverCard.vue';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -155,52 +156,58 @@ defineProps<{
 
             <InfiniteScroll data="mentors" :buffer="400">
                 <div class="grid gap-4 md:grid-cols-2">
-                    <Link
+                    <div
                         v-for="mentor in mentors?.data ?? []"
                         :key="mentor.id"
-                        :href="`/@${mentor.user.username}`"
-                        class="bg-card cursor-pointer rounded-xl border p-4"
-                        data-clickable
+                        class="bg-card rounded-xl border p-4"
                     >
                         <div class="flex items-center gap-3">
-                            <Avatar>
-                                <AvatarImage
-                                    v-if="mentor.user.avatar"
-                                    :src="mentor.user.avatar"
-                                    :alt="mentor.user.name"
-                                />
-                                <AvatarFallback>
-                                    {{ getInitials(mentor.user.name) }}
-                                </AvatarFallback>
-                            </Avatar>
+                            <Link
+                                :href="`/@${mentor.user.username}`"
+                                class="shrink-0"
+                            >
+                                <Avatar>
+                                    <AvatarImage
+                                        v-if="mentor.user.avatar"
+                                        :src="mentor.user.avatar"
+                                        :alt="mentor.user.name"
+                                    />
+                                    <AvatarFallback>
+                                        {{ getInitials(mentor.user.name) }}
+                                    </AvatarFallback>
+                                </Avatar>
+                            </Link>
                             <div>
-                                <p class="font-semibold hover:underline">
-                                    {{ mentor.user.name }}
-                                </p>
+                                <ProfileHoverCard :user="mentor.user" />
                                 <p class="text-muted-foreground text-sm">
                                     @{{ mentor.user.username }}
                                 </p>
                             </div>
                         </div>
-                        <p v-if="mentor.headline" class="mt-3 font-medium">
-                            {{ mentor.headline }}
-                        </p>
-                        <p v-if="mentor.bio" class="text-muted-foreground mt-1 text-sm">
-                            {{ mentor.bio }}
-                        </p>
-                        <p
-                            v-if="mentor.skills?.length"
-                            class="text-muted-foreground mt-2 text-xs"
+                        <Link
+                            :href="`/@${mentor.user.username}`"
+                            class="mt-3 block cursor-pointer"
                         >
-                            {{ mentor.skills.join(' · ') }}
-                        </p>
-                        <p
-                            v-if="formatUsdHourly(mentor.hourly_rate_cents)"
-                            class="mt-3 text-sm font-medium"
-                        >
-                            {{ formatUsdHourly(mentor.hourly_rate_cents) }}
-                        </p>
-                    </Link>
+                            <p v-if="mentor.headline" class="font-medium">
+                                {{ mentor.headline }}
+                            </p>
+                            <p v-if="mentor.bio" class="text-muted-foreground mt-1 text-sm">
+                                {{ mentor.bio }}
+                            </p>
+                            <p
+                                v-if="mentor.skills?.length"
+                                class="text-muted-foreground mt-2 text-xs"
+                            >
+                                {{ mentor.skills.join(' · ') }}
+                            </p>
+                            <p
+                                v-if="formatUsdHourly(mentor.hourly_rate_cents)"
+                                class="mt-3 text-sm font-medium"
+                            >
+                                {{ formatUsdHourly(mentor.hourly_rate_cents) }}
+                            </p>
+                        </Link>
+                    </div>
                 </div>
 
                 <p

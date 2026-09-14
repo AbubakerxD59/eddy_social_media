@@ -5,6 +5,7 @@ import ConfirmDeleteDialog from '@/components/ConfirmDeleteDialog.vue';
 import FormattedBody from '@/components/FormattedBody.vue';
 import LinkPreviewCard from '@/components/LinkPreviewCard.vue';
 import MediaCarousel from '@/components/MediaCarousel.vue';
+import ProfileHoverCard from '@/components/ProfileHoverCard.vue';
 import SignalActions from '@/components/SignalActions.vue';
 import SignalComposer from '@/components/SignalComposer.vue';
 import SignalDetails from '@/components/SignalDetails.vue';
@@ -110,25 +111,28 @@ const remove = () => {
         @click="openSignal"
     >
         <div class="flex items-start justify-between gap-3">
-            <Link :href="profileHref" class="flex min-w-0 items-center gap-3">
-                <Avatar class="size-11">
-                    <AvatarImage
-                        v-if="signal.author.avatar"
-                        :src="signal.author.avatar"
-                        :alt="signal.author.name"
-                    />
-                    <AvatarFallback>{{ getInitials(signal.author.name) }}</AvatarFallback>
-                </Avatar>
+            <div class="flex min-w-0 items-center gap-3">
+                <Link :href="profileHref" class="shrink-0">
+                    <Avatar class="size-11">
+                        <AvatarImage
+                            v-if="signal.author.avatar"
+                            :src="signal.author.avatar"
+                            :alt="signal.author.name"
+                        />
+                        <AvatarFallback>{{ getInitials(signal.author.name) }}</AvatarFallback>
+                    </Avatar>
+                </Link>
                 <span class="min-w-0">
-                    <span class="block truncate text-[15px] font-semibold">
-                        {{ signal.author.name }}
-                    </span>
+                    <ProfileHoverCard
+                        :user="signal.author"
+                        class="block truncate text-[15px]"
+                    />
                     <span class="text-muted-foreground block truncate text-[12px]">
                         {{ signal.author.headline || `@${signal.author.username}` }}
                         <span v-if="createdAt"> · {{ createdAt }}</span>
                     </span>
                 </span>
-            </Link>
+            </div>
 
             <div class="shrink-0" @click.stop>
                 <SignalMoreMenu

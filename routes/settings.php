@@ -10,6 +10,9 @@ Route::middleware(['auth'])->group(function () {
 
     Route::get('settings/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('settings/profile', [ProfileController::class, 'update'])->name('profile.update');
+    Route::post('settings/profile/photo', [ProfileController::class, 'photo'])
+        ->middleware('throttle:20,1')
+        ->name('profile.photo');
 });
 
 Route::middleware(['auth', 'verified'])->group(function () {

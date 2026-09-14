@@ -2,6 +2,7 @@
 import { ImagePlus, Play, X } from '@lucide/vue';
 import DropzoneLib from 'dropzone';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import UploadProgressRing from '@/components/UploadProgressRing.vue';
 import { csrfToken } from '@/lib/csrf';
 import { notifyError } from '@/lib/notify';
 
@@ -15,7 +16,6 @@ Dropzone.autoDiscover = false;
 const IMAGE_MAX_BYTES = 8 * 1024 * 1024;
 const VIDEO_MAX_BYTES = 50 * 1024 * 1024;
 const MAX_FILES = 6;
-const RING = 2 * Math.PI * 14;
 
 type UploadKind = 'image' | 'video';
 type UploadStatus = 'uploading' | 'ready' | 'error';
@@ -366,37 +366,10 @@ defineExpose({ open });
                     </span>
                 </span>
 
-                <div
+                <UploadProgressRing
                     v-if="item.status === 'uploading'"
-                    class="absolute inset-0 flex items-center justify-center bg-black/50"
-                >
-                    <div class="relative size-14">
-                        <svg class="size-14 -rotate-90" viewBox="0 0 36 36" aria-hidden="true">
-                            <circle
-                                cx="18"
-                                cy="18"
-                                r="14"
-                                fill="none"
-                                stroke="rgb(255 255 255 / 0.25)"
-                                stroke-width="2.5"
-                            />
-                            <circle
-                                cx="18"
-                                cy="18"
-                                r="14"
-                                fill="none"
-                                stroke="white"
-                                stroke-width="2.5"
-                                stroke-linecap="round"
-                                :stroke-dasharray="RING"
-                                :stroke-dashoffset="RING * (1 - item.progress / 100)"
-                            />
-                        </svg>
-                        <span class="absolute inset-0 flex items-center justify-center text-[11px] font-semibold text-white">
-                            {{ Math.round(item.progress) }}%
-                        </span>
-                    </div>
-                </div>
+                    :progress="item.progress"
+                />
 
                 <div
                     v-else-if="item.status === 'error'"

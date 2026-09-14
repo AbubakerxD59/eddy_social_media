@@ -1,8 +1,11 @@
 <?php
 
+use App\Http\Controllers\ConnectionController;
 use App\Http\Controllers\FeedController;
 use App\Http\Controllers\LinkPreviewController;
 use App\Http\Controllers\MentorController;
+use App\Http\Controllers\MessageController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PlaceController;
 use App\Http\Controllers\PublicProfileController;
 use App\Http\Controllers\PublicStorageController;
@@ -54,6 +57,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('signals/{signal}/report', [SignalController::class, 'report'])->name('signals.report');
     Route::post('signals/{signal}/vote', [SignalController::class, 'vote'])->name('signals.vote');
     Route::post('users/{user}/mute', [UserMuteController::class, 'store'])->name('users.mute');
+    Route::get('users/{user}/card', [ConnectionController::class, 'card'])->name('users.card');
+    Route::post('users/{user}/connect', [ConnectionController::class, 'store'])
+        ->middleware('throttle:30,1')
+        ->name('users.connect');
+    Route::post('connections/{connection}/accept', [ConnectionController::class, 'accept'])->name('connections.accept');
+    Route::post('connections/{connection}/reject', [ConnectionController::class, 'reject'])->name('connections.reject');
     Route::delete('signals/{signal}', [SignalController::class, 'destroy'])->name('signals.destroy');
     Route::post('link-preview', LinkPreviewController::class)->name('link-preview.store');
     Route::post('location', [UserLocationController::class, 'store'])
@@ -71,15 +80,28 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('mentors', [MentorController::class, 'store'])->name('mentors.store');
     Route::post('talent', [TalentController::class, 'store'])->name('talent.store');
 
-    Route::inertia('messages', 'ComingSoon', [
-        'title' => 'Messages',
-        'description' => 'Live chat will use Laravel Echo. On Hostinger shared hosting that will go through Pusher or Ably, then Laravel Reverb after a VPS move.',
-    ])->name('messages.index');
+    Route::get('conversations', [MessageController::class, 'inbox'])->name('conversations.index');
+    Route::get('messages', [MessageController::class, 'index'])->name('messages.index');
+    Route::get('messages/with/{user}', [MessageController::class, 'with'])->name('messages.with');
+    Route::get('messages/{conversation}', [MessageController::class, 'show'])->name('messages.show');
+    Route::get('conversations/{conversation}/messages', [MessageController::class, 'messages'])->name('conversations.messages');
+    Route::post('conversations/{conversation}/messages', [MessageController::class, 'store'])
+        ->middleware('throttle:60,1')
+        ->name('conversations.messages.store');
+    Route::patch('conversations/{conversation}/messages/{message}', [MessageController::class, 'update'])
+        ->middleware('throttle:60,1')
+        ->name('conversations.messages.update');
+    Route::delete('conversations/{conversation}/messages/{message}', [MessageController::class, 'destroy'])
+        ->middleware('throttle:60,1')
+        ->name('conversations.messages.destroy');
+    Route::post('conversations/{conversation}/accept', [MessageController::class, 'accept'])->name('conversations.accept');
+    Route::post('conversations/{conversation}/reject', [MessageController::class, 'reject'])->name('conversations.reject');
 
-    Route::inertia('notifications', 'ComingSoon', [
-        'title' => 'Notifications',
-        'description' => 'Realtime notifications will share the same Echo channel layer as chat. The Vue UI can be wired without changing this stack.',
-    ])->name('notifications.index');
+    Route::get('notifications', [NotificationController::class, 'index'])->name('notifications.index');
+    Route::post('notifications/read-all', [NotificationController::class, 'readAll'])->name('notifications.read-all');
+    Route::post('notifications/{notification}/read', [NotificationController::class, 'read'])->name('notifications.read');
+    Route::post('notifications/{notification}/accept', [NotificationController::class, 'accept'])->name('notifications.accept');
+    Route::post('notifications/{notification}/reject', [NotificationController::class, 'reject'])->name('notifications.reject');
 
     Route::inertia('connections', 'ComingSoon', [
         'title' => 'Connections',

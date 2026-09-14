@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { Link, router, usePage } from '@inertiajs/vue3';
-import { Bell, MessageSquare, Plus, Search } from '@lucide/vue';
+import { Plus, Search } from '@lucide/vue';
 import { computed, ref } from 'vue';
+import ChatBell from '@/components/dashboard/ChatBell.vue';
+import NotificationBell from '@/components/dashboard/NotificationBell.vue';
 import UserMenuContent from '@/components/UserMenuContent.vue';
 import ViewerLocationPicker from '@/components/dashboard/ViewerLocationPicker.vue';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -75,29 +77,9 @@ const create = () => {
                     Create
                 </Button>
 
-                <Button
-                    as-child
-                    variant="ghost"
-                    size="icon"
-                    class="relative rounded-full"
-                >
-                    <Link href="/messages" aria-label="Messages">
-                        <MessageSquare class="size-5" />
-                        <span class="bg-destructive absolute top-1.5 right-1.5 size-2 rounded-full" />
-                    </Link>
-                </Button>
+                <ChatBell />
 
-                <Button
-                    as-child
-                    variant="ghost"
-                    size="icon"
-                    class="relative rounded-full"
-                >
-                    <Link href="/notifications" aria-label="Notifications">
-                        <Bell class="size-5" />
-                        <span class="bg-destructive absolute top-1.5 right-1.5 size-2 rounded-full" />
-                    </Link>
-                </Button>
+                <NotificationBell />
 
                 <DropdownMenu v-if="user">
                     <DropdownMenuTrigger as-child>

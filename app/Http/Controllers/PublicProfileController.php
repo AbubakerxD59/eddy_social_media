@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Connection;
 use App\Models\User;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -20,6 +21,7 @@ class PublicProfileController extends Controller
                 'is_own' => auth()->id() === $user->id,
                 'hourly_rate_cents' => $user->talentProfile?->hourly_rate_cents
                     ?? $user->mentorProfile?->hourly_rate_cents,
+                'connection' => Connection::statusFor(auth()->id(), $user->id),
             ],
             'signals' => Inertia::scroll(
                 fn () => FeedController::paginatedSignals(request(), null, $user->id),

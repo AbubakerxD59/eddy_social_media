@@ -1,5 +1,7 @@
 import type { Auth } from '@/types/auth';
 import type { StoryGroup, UniverseRail } from '@/types/dashboard';
+import type { ChatInboxPayload } from '@/types/messages';
+import type { NotificationPayload } from '@/types/notifications';
 
 // Extend ImportMeta interface for Vite...
 declare module 'vite/client' {
@@ -26,6 +28,9 @@ declare module '@inertiajs/core' {
             viewerLongitude?: number | null;
             viewerLocation?: string | null;
             viewerLocationManual?: boolean;
+            notifications?: NotificationPayload;
+            chats?: ChatInboxPayload;
+            messages_unread_count?: number;
             [key: string]: unknown;
         };
     }

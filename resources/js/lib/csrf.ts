@@ -19,3 +19,13 @@ export function csrfHeaders(): HeadersInit {
         ...(token ? { 'X-XSRF-TOKEN': token } : {}),
     };
 }
+
+export function csrfFormHeaders(): HeadersInit {
+    const token = csrfToken();
+
+    return {
+        Accept: 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+        ...(token ? { 'X-XSRF-TOKEN': token } : {}),
+    };
+}

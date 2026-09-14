@@ -3,6 +3,7 @@ import { router } from '@inertiajs/vue3';
 import { ChevronLeft, ChevronRight, Trash2, X } from '@lucide/vue';
 import { computed, onUnmounted, ref, watch } from 'vue';
 import ConfirmDeleteDialog from '@/components/ConfirmDeleteDialog.vue';
+import ProfileHoverCard from '@/components/ProfileHoverCard.vue';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { getInitials } from '@/composables/useInitials';
@@ -285,8 +286,8 @@ const barWidth = (index: number): string => {
                         <AvatarFallback>{{ getInitials(author.name) }}</AvatarFallback>
                     </Avatar>
                     <div class="min-w-0 flex-1">
-                        <p class="truncate text-sm font-semibold text-white">
-                            {{ author.name }}
+                        <p class="truncate text-sm text-white">
+                            <ProfileHoverCard :user="author" class="text-sm text-white" />
                         </p>
                         <p class="text-xs text-white/70">
                             {{ formatRelativeTime(item.created_at) }}

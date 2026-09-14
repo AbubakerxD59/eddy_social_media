@@ -15,6 +15,7 @@ test('a public profile shows the users signals', function () {
             ->component('Profile/Show')
             ->where('profile.username', 'ada')
             ->where('profile.is_own', false)
+            ->where('profile.cover', null)
             ->missing('signals')
             ->loadDeferredProps('feed', fn ($page) => $page->has('signals.data', 1)));
 });

@@ -3,8 +3,10 @@
 namespace App\Http\Middleware;
 
 use App\Http\Controllers\FeedController;
+use App\Models\Conversation;
 use App\Models\Story;
 use App\Models\User;
+use App\Models\UserNotification;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Middleware;
@@ -43,6 +45,10 @@ class HandleInertiaRequests extends Middleware
         $origin = FeedController::rememberViewerOrigin($request);
         $state = FeedController::viewerLocationState($request);
 
+        $chats = $user instanceof User
+            ? $this->chatPayload($user)
+            : ['unread_count' => 0, 'recent' => []];
+
         return [
             ...parent::share($request),
             'name' => config('app.name'),
@@ -60,6 +66,40 @@ class HandleInertiaRequests extends Middleware
             'rail' => $user instanceof User
                 ? Inertia::defer(fn () => FeedController::rail($user), 'rail')
                 : null,
+            'notifications' => $user instanceof User
+                ? $this->notificationPayload($user)
+                : ['unread_count' => 0, 'recent' => []],
+            'chats' => $chats,
+            'messages_unread_count' => $chats['unread_count'],
+        ];
+    }
+
+    /**
+     * @return array{unread_count: int, recent: list<array<string, mixed>>}
+     */
+    private function notificationPayload(User $user): array
+    {
+        return [
+            'unread_count' => $user->notifications()->unread()->count(),
+            'recent' => $user->notifications()
+                ->with(['actor', 'peerConnection', 'conversation'])
+                ->latest()
+                ->limit(10)
+                ->get()
+                ->map(fn (UserNotification $notification) => $notification->toFeedArray())
+                ->values()
+                ->all(),
+        ];
+    }
+
+    /**
+     * @return array{unread_count: int, recent: list<array<string, mixed>>}
+     */
+    private function chatPayload(User $user): array
+    {
+        return [
+            'unread_count' => Conversation::unreadCountFor($user),
+            'recent' => Conversation::recentInboxFor($user),
         ];
     }
 }

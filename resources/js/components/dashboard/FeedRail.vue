@@ -5,6 +5,7 @@ import { computed } from 'vue';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import ProfileHoverCard from '@/components/ProfileHoverCard.vue';
 import { getInitials } from '@/composables/useInitials';
 import { formatUsdAmount } from '@/lib/currency';
 
@@ -41,7 +42,9 @@ const events = [
                         <AvatarFallback>{{ getInitials(match.name) }}</AvatarFallback>
                     </Avatar>
                     <div class="min-w-0 flex-1">
-                        <p class="truncate text-sm font-semibold">{{ match.name }}</p>
+                        <p class="truncate text-sm">
+                            <ProfileHoverCard :user="match" class="text-sm" />
+                        </p>
                         <p class="text-muted-foreground truncate text-[12px]">
                             {{ match.headline || `@${match.username}` }}
                         </p>

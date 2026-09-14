@@ -12,6 +12,7 @@ use App\Models\SignalMedia;
 use App\Models\SignalUpload;
 use App\Services\GooglePlacesService;
 use App\Services\LinkPreviewService;
+use App\Services\NearbySignalNotifier;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\UploadedFile;
@@ -42,7 +43,7 @@ class SignalController extends Controller
         ]);
     }
 
-    public function store(StoreSignalRequest $request, LinkPreviewService $previews, GooglePlacesService $places): RedirectResponse
+    public function store(StoreSignalRequest $request, LinkPreviewService $previews, GooglePlacesService $places, NearbySignalNotifier $notifier): RedirectResponse
     {
         $type = SignalType::from($request->validated('type'));
         $parent = $this->parentFromRequest($request);
@@ -69,6 +70,10 @@ class SignalController extends Controller
 
             return $signal;
         });
+
+        if ($parent === null) {
+            $notifier->notify($signal);
+        }
 
         Inertia::flash('toast', [
             'type' => 'success',
