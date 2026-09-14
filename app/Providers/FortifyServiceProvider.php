@@ -69,7 +69,9 @@ class FortifyServiceProvider extends ServiceProvider
                     'message' => __('A new verification link has been sent.'),
                 ]);
 
-                return back()->with('status', Fortify::VERIFICATION_LINK_SENT);
+                return redirect()
+                    ->route('verification.notice')
+                    ->with('status', Fortify::VERIFICATION_LINK_SENT);
             }
         });
     }

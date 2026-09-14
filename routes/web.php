@@ -34,6 +34,10 @@ Route::get('/', function () {
     return Inertia::render('Welcome');
 })->name('home');
 
+Route::middleware('auth')->get('/email/verification-notification', function () {
+    return redirect()->route('verification.notice');
+});
+
 Route::get('/@{user:username}', PublicProfileController::class)->name('profiles.show');
 Route::get('/s/{signal}', [SignalController::class, 'show'])->name('signals.show');
 
