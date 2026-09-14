@@ -76,6 +76,14 @@ class StoreSignalRequest extends FormRequest
                 return;
             }
 
+            $isReply = filled($this->input('parent_id'));
+
+            if ($this->user() && ! $this->user()->canCompose($type, $isReply)) {
+                $validator->errors()->add('type', 'Your account cannot post this kind of signal.');
+
+                return;
+            }
+
             match ($type) {
                 SignalType::Drop => $this->validateDrop($validator),
                 SignalType::Need => $this->validateNeed($validator),

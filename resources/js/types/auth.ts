@@ -1,3 +1,5 @@
+export type UserType = 'business' | 'talent' | 'explorer';
+
 export type User = {
     id: number;
     name: string;
@@ -5,6 +7,8 @@ export type User = {
     last_name?: string | null;
     business_name?: string | null;
     username: string;
+    type?: UserType;
+    compose_types?: Array<'drop' | 'need' | 'opportunity' | 'poll'>;
     email: string;
     headline?: string | null;
     bio?: string | null;

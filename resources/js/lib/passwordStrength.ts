@@ -8,27 +8,27 @@ export function passwordChecks(password: string): PasswordCheck[] {
     return [
         {
             id: 'length',
-            label: 'At least 12 characters',
+            label: '12+ characters',
             passed: password.length >= 12,
         },
         {
             id: 'lower',
-            label: 'One lowercase letter',
+            label: 'Lowercase',
             passed: /[a-z]/.test(password),
         },
         {
             id: 'upper',
-            label: 'One uppercase letter',
+            label: 'Uppercase',
             passed: /[A-Z]/.test(password),
         },
         {
             id: 'number',
-            label: 'One number',
+            label: 'Number',
             passed: /\d/.test(password),
         },
         {
             id: 'symbol',
-            label: 'One symbol',
+            label: 'Symbol',
             passed: /[^A-Za-z0-9]/.test(password),
         },
     ];

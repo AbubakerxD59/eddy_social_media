@@ -1,42 +1,94 @@
 <script setup lang="ts">
 import { Deferred, Form, Head, InfiniteScroll, Link } from '@inertiajs/vue3';
+import TalentFields from '@/components/TalentFields.vue';
+import InputError from '@/components/InputError.vue';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getInitials } from '@/composables/useInitials';
+import { notifyFormError, notifySuccess } from '@/lib/notify';
 import type { Paginator, PublicUser } from '@/types/social';
 
-type Mentor = {
+type Talent = {
     id: number;
     headline: string | null;
     bio: string | null;
+    skills: string[];
     hourly_rate_cents: number | null;
-    google_connected: boolean;
+    is_available: boolean;
     user: PublicUser;
 };
 
 defineProps<{
-    mentors?: Paginator<Mentor>;
+    mentors?: Paginator<Talent>;
     isMentor: boolean;
+    isTalent: boolean;
+    canBecomeTalent: boolean;
+    talentProfile?: {
+        headline: string;
+        bio: string;
+        skills: string[] | null;
+        hourly_rate_cents: number | null;
+    } | null;
 }>();
 </script>
 
 <template>
-    <Head title="Mentors" />
+    <Head title="Talent Hub" />
 
     <div class="mx-auto w-full max-w-3xl space-y-8 px-4 py-6">
         <div>
-            <h1 class="text-2xl font-semibold">Mentors</h1>
+            <h1 class="text-2xl font-semibold">Talent Hub</h1>
             <p class="text-muted-foreground mt-1 text-sm">
-                Book live sessions with operators. Calendar and Stripe
-                checkout land next; listings work now.
+                Find freelancers and specialists. Explorers can list themselves as talent.
             </p>
         </div>
 
         <section
-            v-if="!isMentor"
+            v-if="canBecomeTalent || isTalent"
+            class="bg-card rounded-xl border p-4"
+        >
+            <h2 class="font-medium">
+                {{ isTalent ? 'Your talent profile' : 'Become talent' }}
+            </h2>
+            <p class="text-muted-foreground mb-4 text-sm">
+                {{
+                    isTalent
+                        ? 'Update how businesses see your services.'
+                        : 'Complete this form to convert your explorer account into a talent profile.'
+                }}
+            </p>
+            <Form
+                action="/talent"
+                method="post"
+                class="grid gap-4"
+                v-slot="{ errors, processing }"
+                @success="notifySuccess(isTalent ? 'Talent profile updated.' : 'You are now listed as talent.')"
+                @error="notifyFormError($event)"
+            >
+                <TalentFields
+                    :errors="errors"
+                    :headline="talentProfile?.headline ?? ''"
+                    :bio="talentProfile?.bio ?? ''"
+                    :skills="(talentProfile?.skills ?? []).join(', ')"
+                    :hourly-rate="
+                        talentProfile?.hourly_rate_cents
+                            ? talentProfile.hourly_rate_cents / 100
+                            : ''
+                    "
+                />
+                <div>
+                    <Button type="submit" :loading="processing">
+                        {{ isTalent ? 'Save talent profile' : 'Become talent' }}
+                    </Button>
+                </div>
+            </Form>
+        </section>
+
+        <section
+            v-else-if="!isMentor"
             class="bg-card rounded-xl border p-4"
         >
             <h2 class="font-medium">Become a mentor</h2>
@@ -48,7 +100,9 @@ defineProps<{
                 action="/mentors"
                 method="post"
                 class="grid gap-3 md:grid-cols-2"
-                v-slot="{ processing }"
+                v-slot="{ processing, errors }"
+                @success="notifySuccess('You are listed as a mentor.')"
+                @error="notifyFormError($event)"
             >
                 <div class="grid gap-2 md:col-span-2">
                     <Label for="headline">Headline</Label>
@@ -57,6 +111,7 @@ defineProps<{
                         name="headline"
                         placeholder="Go-to-market for B2B SaaS"
                     />
+                    <InputError :message="errors.headline" />
                 </div>
                 <div class="grid gap-2 md:col-span-2">
                     <Label for="bio">Bio</Label>
@@ -67,6 +122,7 @@ defineProps<{
                         class="border-input w-full rounded-md border bg-transparent px-3 py-2 text-sm"
                         placeholder="What you help founders with"
                     />
+                    <InputError :message="errors.bio" />
                 </div>
                 <div class="grid gap-2">
                     <Label for="hourly_rate_cents">Rate (cents / hour)</Label>
@@ -77,6 +133,7 @@ defineProps<{
                         min="0"
                         placeholder="15000"
                     />
+                    <InputError :message="errors.hourly_rate_cents" />
                 </div>
                 <div class="flex items-end">
                     <Button type="submit" :loading="processing">
@@ -129,17 +186,16 @@ defineProps<{
                             {{ mentor.bio }}
                         </p>
                         <p
+                            v-if="mentor.skills?.length"
+                            class="text-muted-foreground mt-2 text-xs"
+                        >
+                            {{ mentor.skills.join(' · ') }}
+                        </p>
+                        <p
                             v-if="mentor.hourly_rate_cents"
                             class="mt-3 text-sm font-medium"
                         >
                             ${{ (mentor.hourly_rate_cents / 100).toFixed(0) }} / hour
-                        </p>
-                        <p class="text-muted-foreground mt-2 text-xs">
-                            {{
-                                mentor.google_connected
-                                    ? 'Google Calendar connected'
-                                    : 'Live booking with Google Meet is coming next'
-                            }}
                         </p>
                     </Link>
                 </div>
@@ -148,7 +204,7 @@ defineProps<{
                     v-if="(mentors?.data.length ?? 0) === 0"
                     class="text-muted-foreground text-sm"
                 >
-                    No mentors are listed yet.
+                    No talent is listed yet.
                 </p>
             </InfiniteScroll>
         </Deferred>

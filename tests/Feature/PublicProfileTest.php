@@ -42,8 +42,36 @@ test('users can list themselves as mentors', function () {
         ->assertInertia(fn ($page) => $page
             ->component('Mentors/Index')
             ->where('isMentor', true)
+            ->where('canBecomeTalent', false)
+            ->missing('mentors'));
+});
+
+test('talent profiles appear in the hub and on the public profile', function () {
+    $user = User::factory()->explorer()->create(['username' => 'talentann']);
+
+    $this->actingAs($user)
+        ->post(route('talent.store'), [
+            'headline' => 'Product ops',
+            'bio' => 'I help teams ship.',
+            'skills' => 'Ops, process',
+        ])
+        ->assertRedirect(route('mentors.index'));
+
+    $this->actingAs($user)
+        ->get(route('mentors.index'))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('isTalent', true)
             ->missing('mentors')
             ->loadDeferredProps('mentors', fn ($page) => $page->has('mentors.data', 1)));
+
+    $this->actingAs($user)
+        ->get(route('profiles.show', $user))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('profile.is_talent', true)
+            ->where('profile.type', 'talent')
+            ->where('profile.is_own', true));
 });
 
 test('mentor profiles appear on the public profile', function () {

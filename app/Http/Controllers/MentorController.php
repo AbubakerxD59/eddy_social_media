@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\MentorProfile;
+use App\Models\TalentProfile;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -12,23 +13,21 @@ class MentorController extends Controller
 {
     public function index(): Response
     {
+        $user = auth()->user();
+
         return Inertia::render('Mentors/Index', [
             'mentors' => Inertia::scroll(
-                fn () => MentorProfile::query()
-                    ->where('is_accepting_bookings', true)
+                fn () => TalentProfile::query()
+                    ->where('is_available', true)
                     ->with('user')
                     ->latest()
                     ->paginate(FeedController::PAGE_SIZE)
-                    ->through(fn (MentorProfile $mentor) => [
-                        'id' => $mentor->id,
-                        'headline' => $mentor->headline ?: $mentor->user->headline,
-                        'bio' => $mentor->bio ?: $mentor->user->bio,
-                        'hourly_rate_cents' => $mentor->hourly_rate_cents,
-                        'google_connected' => $mentor->google_connected_at !== null,
-                        'user' => $mentor->user->toPublicArray(),
-                    ]),
+                    ->through(fn (TalentProfile $talent) => $talent->toPublicArray()),
             )->defer('mentors'),
-            'isMentor' => auth()->user()?->mentorProfile !== null,
+            'isMentor' => $user?->mentorProfile !== null,
+            'isTalent' => $user?->isTalent() ?? false,
+            'canBecomeTalent' => $user?->isExplorer() ?? false,
+            'talentProfile' => $user?->talentProfile?->only(['headline', 'bio', 'skills', 'hourly_rate_cents']),
         ]);
     }
 

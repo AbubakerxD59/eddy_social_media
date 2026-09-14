@@ -15,7 +15,7 @@ defineProps<{
     <div
         class="bg-background flex min-h-svh flex-col items-center justify-center gap-6 overflow-y-auto p-6 md:p-10"
     >
-        <div class="w-full" :class="wide ? 'max-w-lg' : 'max-w-sm'">
+        <div class="w-full" :class="wide ? 'max-w-2xl' : 'max-w-sm'">
             <div class="flex flex-col gap-8">
                 <div class="flex flex-col items-center gap-4">
                     <Link

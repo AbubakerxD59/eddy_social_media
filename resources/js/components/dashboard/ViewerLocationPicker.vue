@@ -26,7 +26,21 @@ const longitude = ref<number | null>(null);
 const placeId = ref('');
 const panelStyle = ref<Record<string, string>>({});
 
-const label = computed(() => page.props.viewerLocation || 'Set location');
+const looksLikeCoordinates = (value: string | null | undefined) =>
+    Boolean(
+        value
+        && /^-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?$/.test(value.trim()),
+    );
+
+const label = computed(() => {
+    const value = page.props.viewerLocation;
+
+    if (!value || value.toLowerCase() === 'current location' || looksLikeCoordinates(value)) {
+        return 'Set location';
+    }
+
+    return value;
+});
 const originLatitude = computed(() => page.props.viewerLatitude ?? null);
 const originLongitude = computed(() => page.props.viewerLongitude ?? null);
 
@@ -118,7 +132,7 @@ const onPicked = (picked: PickedLocation) => {
     }
 
     void apply({
-        label: picked.current ? 'Current location' : picked.label,
+        label: picked.label,
         latitude: picked.latitude,
         longitude: picked.longitude,
         manual: !picked.current,

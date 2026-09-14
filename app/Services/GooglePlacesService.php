@@ -11,6 +11,10 @@ class GooglePlacesService
 
     private const DETAILS_URL = 'https://maps.googleapis.com/maps/api/place/details/json';
 
+    private const GEOCODE_URL = 'https://maps.googleapis.com/maps/api/geocode/json';
+
+    private const NEARBY_URL = 'https://maps.googleapis.com/maps/api/place/nearbysearch/json';
+
     /**
      * Same mix as the working Places Autocomplete integration: businesses and addresses.
      */
@@ -152,6 +156,228 @@ class GooglePlacesService
             'latitude' => (float) $latitude,
             'longitude' => (float) $longitude,
         ];
+    }
+
+    public function reverseGeocode(float $latitude, float $longitude): ?string
+    {
+        $key = $this->apiKey();
+
+        if ($key === null) {
+            return null;
+        }
+
+        return $this->reverseGeocodeFromGeocoding($latitude, $longitude)
+            ?? $this->reverseGeocodeFromNearby($latitude, $longitude);
+    }
+
+    private function reverseGeocodeFromGeocoding(float $latitude, float $longitude): ?string
+    {
+        try {
+            $response = Http::timeout(6)
+                ->connectTimeout(4)
+                ->get(self::GEOCODE_URL, [
+                    'latlng' => $latitude.','.$longitude,
+                    'key' => $this->apiKey(),
+                    'language' => 'en',
+                ]);
+        } catch (Throwable) {
+            return null;
+        }
+
+        if (! $response->successful() || $response->json('status') !== 'OK') {
+            return null;
+        }
+
+        $results = $response->json('results', []);
+
+        if (! is_array($results)) {
+            return null;
+        }
+
+        $preferred = [];
+        $fallback = [];
+
+        foreach ($results as $result) {
+            if (! is_array($result)) {
+                continue;
+            }
+
+            $label = $this->labelFromGeocodeResult($result);
+
+            if ($label === null) {
+                continue;
+            }
+
+            $types = is_array($result['types'] ?? null) ? $result['types'] : [];
+            $isPlaceName = count(array_intersect($types, [
+                'locality',
+                'neighborhood',
+                'sublocality',
+                'sublocality_level_1',
+                'administrative_area_level_1',
+                'administrative_area_level_2',
+                'political',
+            ])) > 0;
+
+            if ($isPlaceName) {
+                $preferred[] = $label;
+            } else {
+                $fallback[] = $label;
+            }
+        }
+
+        return $preferred[0] ?? $fallback[0] ?? null;
+    }
+
+    private function reverseGeocodeFromNearby(float $latitude, float $longitude): ?string
+    {
+        try {
+            $response = Http::timeout(6)
+                ->connectTimeout(4)
+                ->get(self::NEARBY_URL, [
+                    'location' => $latitude.','.$longitude,
+                    'rankby' => 'distance',
+                    'key' => $this->apiKey(),
+                    'language' => 'en',
+                ]);
+        } catch (Throwable) {
+            return null;
+        }
+
+        if (! $response->successful() || $response->json('status') !== 'OK') {
+            return null;
+        }
+
+        $results = $response->json('results', []);
+
+        if (! is_array($results)) {
+            return null;
+        }
+
+        foreach ($results as $result) {
+            if (! is_array($result)) {
+                continue;
+            }
+
+            $vicinity = $result['vicinity'] ?? null;
+
+            if (is_string($vicinity) && trim($vicinity) !== '') {
+                return mb_substr(trim($vicinity), 0, 255);
+            }
+
+            $name = $result['name'] ?? null;
+
+            if (is_string($name) && trim($name) !== '' && ! preg_match('/^-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?$/', trim($name))) {
+                return mb_substr(trim($name), 0, 255);
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  array<string, mixed>  $result
+     */
+    private function labelFromGeocodeResult(array $result): ?string
+    {
+        $fromComponents = $this->labelFromAddressComponents($result);
+
+        if ($fromComponents !== null) {
+            return $fromComponents;
+        }
+
+        $formatted = $result['formatted_address'] ?? null;
+
+        if (! is_string($formatted)) {
+            return null;
+        }
+
+        $formatted = trim($formatted);
+
+        if ($formatted === '' || preg_match('/^-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?$/', $formatted)) {
+            return null;
+        }
+
+        if (preg_match('/^[0-9A-Z]{2,}\+[0-9A-Z]+\s+(.+)$/i', $formatted, $matches)) {
+            $formatted = trim($matches[1]);
+        }
+
+        return $formatted !== '' ? mb_substr($formatted, 0, 255) : null;
+    }
+
+    /**
+     * @param  array<string, mixed>  $result
+     */
+    private function labelFromAddressComponents(array $result): ?string
+    {
+        $components = $result['address_components'] ?? [];
+
+        if (! is_array($components) || $components === []) {
+            return null;
+        }
+
+        $find = function (array $types) use ($components): ?array {
+            foreach ($components as $component) {
+                if (! is_array($component) || ! is_array($component['types'] ?? null)) {
+                    continue;
+                }
+
+                if (count(array_intersect($types, $component['types'])) > 0) {
+                    return $component;
+                }
+            }
+
+            return null;
+        };
+
+        $neighborhood = $find(['neighborhood', 'sublocality', 'sublocality_level_1']);
+        $locality = $find(['locality', 'postal_town']);
+        $area = $find(['administrative_area_level_2']);
+        $region = $find(['administrative_area_level_1']);
+        $country = $find(['country']);
+
+        $parts = [];
+        $isUsableName = function (?string $name): bool {
+            $name = trim((string) $name);
+
+            return $name !== ''
+                && ! preg_match('/^-?\d+(?:\.\d+)?$/', $name)
+                && preg_match('/\p{L}/u', $name);
+        };
+
+        $localityName = is_array($locality) ? trim((string) ($locality['long_name'] ?? '')) : '';
+        $neighborhoodName = is_array($neighborhood) ? trim((string) ($neighborhood['long_name'] ?? '')) : '';
+        $areaName = is_array($area) ? trim((string) ($area['long_name'] ?? '')) : '';
+
+        if ($isUsableName($localityName)) {
+            $parts[] = $localityName;
+        } elseif ($isUsableName($neighborhoodName)) {
+            $parts[] = $neighborhoodName;
+        } elseif ($isUsableName($areaName)) {
+            $parts[] = $areaName;
+        }
+
+        if (is_array($region)) {
+            $regionName = trim((string) ($region['short_name'] ?? $region['long_name'] ?? ''));
+
+            if ($regionName !== '' && $isUsableName($regionName) && ! in_array($regionName, $parts, true)) {
+                $parts[] = $regionName;
+            }
+        }
+
+        if ($parts === [] && is_array($country)) {
+            $countryName = trim((string) ($country['long_name'] ?? $country['short_name'] ?? ''));
+
+            if ($countryName !== '') {
+                $parts[] = $countryName;
+            }
+        }
+
+        if ($parts === []) {
+            return null;
+        }
+
+        return mb_substr(implode(', ', $parts), 0, 255);
     }
 
     public function normalizePlaceId(string $placeId): string

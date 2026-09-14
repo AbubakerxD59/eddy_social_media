@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\UserType;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
@@ -29,6 +30,7 @@ class UserFactory extends Factory
         return [
             'name' => $name,
             'username' => fake()->unique()->regexify('[a-z][a-z0-9_]{6,14}'),
+            'type' => UserType::Business,
             'email' => fake()->unique()->safeEmail(),
             'headline' => fake()->optional()->jobTitle(),
             'bio' => fake()->optional()->sentence(),
@@ -41,6 +43,26 @@ class UserFactory extends Factory
             'two_factor_recovery_codes' => null,
             'two_factor_confirmed_at' => null,
         ];
+    }
+
+    public function explorer(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'type' => UserType::Explorer,
+            'business_name' => null,
+            'fiscal_year' => null,
+            'full_time_employees' => null,
+        ]);
+    }
+
+    public function talent(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'type' => UserType::Talent,
+            'business_name' => null,
+            'fiscal_year' => null,
+            'full_time_employees' => null,
+        ]);
     }
 
     /**

@@ -10,12 +10,13 @@ class PublicProfileController extends Controller
 {
     public function __invoke(User $user): Response
     {
-        $user->load('mentorProfile');
+        $user->load(['mentorProfile', 'talentProfile']);
 
         return Inertia::render('Profile/Show', [
             'profile' => [
                 ...$user->toPublicArray(),
                 'is_mentor' => $user->mentorProfile !== null,
+                'is_talent' => $user->isTalent(),
                 'is_own' => auth()->id() === $user->id,
             ],
             'signals' => Inertia::scroll(

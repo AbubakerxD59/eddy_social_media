@@ -6,22 +6,30 @@ use App\Enums\SignalType;
 use App\Models\Signal;
 use App\Models\User;
 use App\Models\UserMute;
+use App\Services\GooglePlacesService;
 use App\Support\HtmlBody;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator as Paginator;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class FeedController extends Controller
 {
-    public const PAGE_SIZE = 20;
+    public const PAGE_SIZE = 10;
 
     public const INITIAL_RADIUS_KM = 250;
 
-    public const MAX_RADIUS_KM = 20_037;
+    public const MAX_RADIUS_KM = 1000;
+
+    /**
+     * @var list<int>
+     */
+    public const FEED_RADII_KM = [250, 500, 1000];
 
     private const KM_PER_DEGREE = 111.045;
 
@@ -32,7 +40,7 @@ class FeedController extends Controller
 
         return Inertia::render('Feed', [
             'highlight' => $request->string('highlight')->toString() ?: null,
-            'compose' => SignalType::tryFrom((string) $request->query('compose'))?->value,
+            'compose' => self::composeType($request)?->value,
             'activeFilter' => $filter,
             'activeType' => $type?->value,
             'signals' => Inertia::scroll(
@@ -68,6 +76,18 @@ class FeedController extends Controller
             'opportunity' => SignalType::Opportunity,
             default => null,
         };
+    }
+
+    public static function composeType(Request $request): ?SignalType
+    {
+        $type = SignalType::tryFrom((string) $request->query('compose'));
+        $user = $request->user();
+
+        if ($type === null || ! $user instanceof User || ! $user->canCompose($type)) {
+            return null;
+        }
+
+        return $type;
     }
 
     /**
@@ -152,7 +172,7 @@ class FeedController extends Controller
      */
     public static function paginatedSignals(Request $request, ?SignalType $type = null, ?int $userId = null): mixed
     {
-        $query = self::excludeMutedAuthors(self::feedQuery())
+        $query = self::excludeMutedAuthors(self::feedQuery(eagerTypeRelations: false))
             ->roots();
 
         if ($userId !== null) {
@@ -165,23 +185,157 @@ class FeedController extends Controller
 
         $origin = $userId === null ? self::viewerOrigin($request) : null;
 
-        if ($origin !== null) {
-            $radiusKm = self::resolvedRadiusKm(
-                self::geoFeedQuery($type, $userId),
-                $origin['latitude'],
-                $origin['longitude'],
-            );
+        if ($origin === null) {
+            $page = $query
+                ->latest('created_at')
+                ->latest('id')
+                ->paginate(self::PAGE_SIZE)
+                ->withQueryString();
 
-            self::applyNearbyOrUnlocatedFilter($query, $origin['latitude'], $origin['longitude'], $radiusKm);
-            self::applyDistanceOrder($query, $origin['latitude'], $origin['longitude']);
-        } else {
-            $query->latest();
+            self::loadTypeRelations($page->getCollection());
+
+            return $page->through(fn (Signal $signal) => self::present($signal));
         }
 
-        return $query
-            ->paginate(self::PAGE_SIZE)
-            ->withQueryString()
-            ->through(fn (Signal $signal) => self::present($signal));
+        return self::paginateSignalsByRadius(
+            $request,
+            $query,
+            $origin['latitude'],
+            $origin['longitude'],
+        );
+    }
+
+    /**
+     * @param  Builder<Signal>  $query
+     * @return Paginator<int, array<string, mixed>>
+     */
+    private static function paginateSignalsByRadius(
+        Request $request,
+        Builder $query,
+        float $latitude,
+        float $longitude,
+    ): Paginator {
+        $page = max(1, (int) $request->integer('page', 1));
+        $offset = ($page - 1) * self::PAGE_SIZE;
+        $needed = self::PAGE_SIZE;
+        $total = 0;
+        $results = new EloquentCollection;
+
+        $previousKm = 0;
+
+        foreach (self::FEED_RADII_KM as $radiusKm) {
+            $ringQuery = self::applyRingFilter(
+                (clone $query)->reorder(),
+                $latitude,
+                $longitude,
+                $previousKm,
+                $radiusKm,
+                includeUnlocated: $previousKm === 0,
+            );
+
+            $ringCount = (clone $ringQuery)->count();
+            $total += $ringCount;
+
+            if ($needed > 0) {
+                if ($offset >= $ringCount) {
+                    $offset -= $ringCount;
+                } else {
+                    $chunk = (clone $ringQuery)
+                        ->latest('created_at')
+                        ->latest('id')
+                        ->offset($offset)
+                        ->limit($needed)
+                        ->get();
+
+                    $results = $results->concat($chunk);
+                    $needed -= $chunk->count();
+                    $offset = 0;
+                }
+            }
+
+            $previousKm = $radiusKm;
+        }
+
+        self::loadTypeRelations($results);
+
+        return new Paginator(
+            $results->map(fn (Signal $signal) => self::present($signal))->values()->all(),
+            $total,
+            self::PAGE_SIZE,
+            $page,
+            [
+                'path' => $request->url(),
+                'query' => $request->query(),
+            ],
+        );
+    }
+
+    /**
+     * @param  Builder<Signal>  $query
+     * @return Builder<Signal>
+     */
+    public static function applyRingFilter(
+        Builder $query,
+        float $latitude,
+        float $longitude,
+        int $minKm,
+        int $maxKm,
+        bool $includeUnlocated,
+    ): Builder {
+        return $query->where(function (Builder $feed) use ($latitude, $longitude, $minKm, $maxKm, $includeUnlocated): void {
+            if ($includeUnlocated) {
+                $feed->where(function (Builder $unlocated): void {
+                    $unlocated->whereNull('latitude')->orWhereNull('longitude');
+                })->orWhere(function (Builder $located) use ($latitude, $longitude, $minKm, $maxKm): void {
+                    self::applyLocatedRing($located, $latitude, $longitude, $minKm, $maxKm);
+                });
+
+                return;
+            }
+
+            self::applyLocatedRing($feed, $latitude, $longitude, $minKm, $maxKm);
+        });
+    }
+
+    /**
+     * @param  Builder<Signal>  $query
+     * @return Builder<Signal>
+     */
+    private static function applyLocatedRing(
+        Builder $query,
+        float $latitude,
+        float $longitude,
+        int $minKm,
+        int $maxKm,
+    ): Builder {
+        self::applyRadiusFilter($query, $latitude, $longitude, $maxKm);
+
+        if ($minKm > 0) {
+            [$sql, $bindings] = self::distanceKmSquaredExpression($latitude, $longitude);
+            $query->whereRaw($sql.' > ?', [...$bindings, $minKm * $minKm]);
+        }
+
+        return $query;
+    }
+
+    /**
+     * @param  Collection<int, Signal>  $signals
+     */
+    private static function loadTypeRelations(Collection $signals): void
+    {
+        $models = new EloquentCollection($signals->values()->all());
+
+        $withMedia = $models->filter(fn (Signal $signal): bool => $signal->type !== SignalType::Poll);
+
+        if ($withMedia->isNotEmpty()) {
+            (new EloquentCollection($withMedia->all()))->load('media');
+        }
+
+        $polls = $models->filter(fn (Signal $signal): bool => $signal->type === SignalType::Poll);
+
+        if ($polls->isNotEmpty()) {
+            (new EloquentCollection($polls->all()))->load('pollVotes');
+        }
     }
 
     /**
@@ -194,7 +348,10 @@ class FeedController extends Controller
         if ($origin !== null) {
             $request->session()->put('viewer_latitude', $origin['latitude']);
             $request->session()->put('viewer_longitude', $origin['longitude']);
-            $request->session()->put('viewer_location_label', 'Current location');
+            $request->session()->put('viewer_location_label', self::resolveLocationLabel(
+                $origin['latitude'],
+                $origin['longitude'],
+            ) ?? '');
             $request->session()->put('viewer_location_manual', false);
 
             return $origin;
@@ -220,18 +377,20 @@ class FeedController extends Controller
                 $request,
                 (float) $user->latitude,
                 (float) $user->longitude,
-                filled($user->location_label) ? (string) $user->location_label : 'Current location',
+                filled($user->location_label) && ! self::isPlaceholderLocationLabel($user->location_label)
+                    ? (string) $user->location_label
+                    : (self::resolveLocationLabel((float) $user->latitude, (float) $user->longitude) ?? ''),
                 true,
                 saveUser: false,
             );
         }
 
         $resolvedManual = $manual ?? false;
-        $resolvedLabel = is_string($label) && trim($label) !== ''
-            ? trim($label)
-            : ($resolvedManual && $user instanceof User && filled($user->location_label)
+        $resolvedLabel = self::isPlaceholderLocationLabel($label)
+            ? ($resolvedManual && $user instanceof User && filled($user->location_label) && ! self::isPlaceholderLocationLabel($user->location_label)
                 ? (string) $user->location_label
-                : 'Current location');
+                : (self::resolveLocationLabel($latitude, $longitude) ?? ''))
+            : trim((string) $label);
 
         return self::storeViewerOriginState(
             $request,
@@ -257,10 +416,16 @@ class FeedController extends Controller
         $label = $request->session()->get('viewer_location_label');
         $user = $request->user();
 
-        if (! is_string($label) || $label === '') {
-            $label = $user instanceof User && filled($user->location_label)
+        if (! is_string($label) || self::isPlaceholderLocationLabel($label)) {
+            $label = $user instanceof User && filled($user->location_label) && ! self::isPlaceholderLocationLabel($user->location_label)
                 ? (string) $user->location_label
-                : 'Current location';
+                : (self::resolveLocationLabel($origin['latitude'], $origin['longitude']) ?? '');
+
+            $request->session()->put('viewer_location_label', $label);
+
+            if ($user instanceof User && self::isPlaceholderLocationLabel($user->location_label) && $label !== '') {
+                $user->forceFill(['location_label' => $label])->save();
+            }
         }
 
         $manual = $request->session()->exists('viewer_location_manual')
@@ -320,6 +485,34 @@ class FeedController extends Controller
         ];
     }
 
+    public static function isPlaceholderLocationLabel(?string $label): bool
+    {
+        $label = is_string($label) ? trim($label) : '';
+
+        if ($label === '' || strcasecmp($label, 'Current location') === 0) {
+            return true;
+        }
+
+        return (bool) preg_match('/^-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?$/', $label);
+    }
+
+    public static function resolveLocationLabel(float $latitude, float $longitude): ?string
+    {
+        $resolved = app(GooglePlacesService::class)->reverseGeocode($latitude, $longitude);
+
+        if (! is_string($resolved)) {
+            return null;
+        }
+
+        $resolved = trim($resolved);
+
+        if ($resolved === '' || self::isPlaceholderLocationLabel($resolved)) {
+            return null;
+        }
+
+        return $resolved;
+    }
+
     /**
      * @return array{latitude: float, longitude: float}|null
      */
@@ -368,39 +561,6 @@ class FeedController extends Controller
 
     /**
      * @param  Builder<Signal>  $query
-     */
-    public static function resolvedRadiusKm(Builder $query, float $latitude, float $longitude): int
-    {
-        $radius = self::INITIAL_RADIUS_KM;
-
-        while ($radius < self::MAX_RADIUS_KM) {
-            if (self::existsWithinRadius($query, $latitude, $longitude, $radius)) {
-                return $radius;
-            }
-
-            $radius = min($radius * 2, self::MAX_RADIUS_KM);
-        }
-
-        return $radius;
-    }
-
-    /**
-     * @param  Builder<Signal>  $query
-     * @return Builder<Signal>
-     */
-    public static function applyNearbyOrUnlocatedFilter(Builder $query, float $latitude, float $longitude, int $radiusKm): Builder
-    {
-        return $query->where(function (Builder $feed) use ($latitude, $longitude, $radiusKm): void {
-            $feed->where(function (Builder $unlocated): void {
-                $unlocated->whereNull('latitude')->orWhereNull('longitude');
-            })->orWhere(function (Builder $located) use ($latitude, $longitude, $radiusKm): void {
-                self::applyRadiusFilter($located, $latitude, $longitude, $radiusKm);
-            });
-        });
-    }
-
-    /**
-     * @param  Builder<Signal>  $query
      * @return Builder<Signal>
      */
     public static function applyRadiusFilter(Builder $query, float $latitude, float $longitude, int $radiusKm): Builder
@@ -442,37 +602,6 @@ class FeedController extends Controller
     }
 
     /**
-     * @param  Builder<Signal>  $query
-     */
-    private static function existsWithinRadius(Builder $query, float $latitude, float $longitude, int $radiusKm): bool
-    {
-        return self::applyRadiusFilter(
-            (clone $query)->reorder(),
-            $latitude,
-            $longitude,
-            $radiusKm,
-        )->exists();
-    }
-
-    /**
-     * @return Builder<Signal>
-     */
-    private static function geoFeedQuery(?SignalType $type = null, ?int $userId = null): Builder
-    {
-        $query = self::excludeMutedAuthors(Signal::query())->roots();
-
-        if ($userId !== null) {
-            $query->where('user_id', $userId);
-        }
-
-        if ($type) {
-            $query->where('type', $type);
-        }
-
-        return $query;
-    }
-
-    /**
      * @return array{0: string, 1: list<float>}
      */
     private static function distanceKmSquaredExpression(float $latitude, float $longitude): array
@@ -496,10 +625,10 @@ class FeedController extends Controller
     /**
      * @return Builder<Signal>
      */
-    public static function feedQuery(): Builder
+    public static function feedQuery(bool $eagerTypeRelations = true): Builder
     {
-        return Signal::query()
-            ->with(['user', 'media', 'pollVotes'])
+        $query = Signal::query()
+            ->with(['user'])
             ->withCount(['likes', 'replies'])
             ->withExists(['likes as liked' => function (Builder $query): void {
                 $query->where('user_id', auth()->id());
@@ -510,6 +639,12 @@ class FeedController extends Controller
             ->withExists(['reports as reported' => function (Builder $query): void {
                 $query->where('user_id', auth()->id());
             }]);
+
+        if ($eagerTypeRelations) {
+            $query->with(['media', 'pollVotes']);
+        }
+
+        return $query;
     }
 
     /**
@@ -549,7 +684,13 @@ class FeedController extends Controller
      */
     public static function present(Signal $signal): array
     {
-        $signal->loadMissing(['user', 'media', 'pollVotes']);
+        $signal->loadMissing('user');
+
+        if ($signal->type === SignalType::Poll) {
+            $signal->loadMissing('pollVotes');
+        } else {
+            $signal->loadMissing('media');
+        }
 
         return [
             'id' => $signal->public_id,
@@ -566,12 +707,14 @@ class FeedController extends Controller
                 'description' => $signal->link_description,
                 'image' => $signal->link_image,
             ] : null,
-            'media' => $signal->media->map(fn ($media) => [
-                'id' => $media->id,
-                'kind' => $media->kind->value,
-                'url' => $media->url,
-                'mime_type' => $media->mime_type,
-            ])->values(),
+            'media' => $signal->type === SignalType::Poll
+                ? []
+                : $signal->media->map(fn ($media) => [
+                    'id' => $media->id,
+                    'kind' => $media->kind->value,
+                    'url' => $media->url,
+                    'mime_type' => $media->mime_type,
+                ])->values(),
             'author' => $signal->user->toPublicArray(),
             'created_at' => $signal->created_at?->toIso8601String(),
             'latitude' => $signal->latitude,

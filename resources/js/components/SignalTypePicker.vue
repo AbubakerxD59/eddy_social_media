@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import { BarChart3, Briefcase, Sparkles, UserPlus } from '@lucide/vue';
-import type { Component } from 'vue';
+import { computed, type Component } from 'vue';
 import { cn } from '@/lib/utils';
 import { SIGNAL_TYPES } from '@/lib/signalTypes';
 import type { SignalType } from '@/types/social';
 
-const { modelValue = null, compact = false } = defineProps<{
+const props = defineProps<{
     modelValue?: SignalType | null;
     compact?: boolean;
+    allowedTypes?: SignalType[];
 }>();
 
 const emit = defineEmits<{
@@ -27,6 +28,27 @@ const iconWrap: Record<SignalType, string> = {
     opportunity: 'bg-opportunity/15 text-opportunity',
     poll: 'bg-poll/15 text-poll',
 };
+
+const types = computed(() => {
+    if (!props.allowedTypes?.length) {
+        return SIGNAL_TYPES;
+    }
+
+    return SIGNAL_TYPES.filter((item) => props.allowedTypes?.includes(item.value));
+});
+
+const gridClass = computed(() => {
+    switch (types.value.length) {
+        case 1:
+            return 'grid-cols-1';
+        case 2:
+            return 'grid-cols-2';
+        case 3:
+            return 'grid-cols-3';
+        default:
+            return props.compact ? 'grid-cols-4' : 'grid-cols-2 sm:grid-cols-4';
+    }
+});
 </script>
 
 <template>
@@ -40,12 +62,12 @@ const iconWrap: Record<SignalType, string> = {
 
         <div
             class="grid gap-2"
-            :class="compact ? 'grid-cols-4' : 'grid-cols-2 sm:grid-cols-4'"
+            :class="gridClass"
             role="radiogroup"
             aria-label="Signal type"
         >
             <button
-                v-for="item in SIGNAL_TYPES"
+                v-for="item in types"
                 :key="item.value"
                 type="button"
                 role="radio"

@@ -70,15 +70,24 @@ const features = [
             <p class="text-muted-foreground mt-4 max-w-xl text-lg">
                 Share what you are building. Book a mentor. Keep the noise out.
             </p>
-            <div class="mt-8 flex gap-3">
+            <div class="mt-8 flex flex-wrap gap-3">
                 <Link
-                    :href="register()"
-                    class="bg-primary text-primary-foreground rounded-lg px-5 py-2.5 text-sm font-medium"
+                    :href="register({ query: { type: 'business' } })"
+                    class="bg-primary text-primary-foreground cursor-pointer rounded-lg px-5 py-2.5 text-sm font-medium"
                 >
-                    Join Eddy
+                    Join as a business
                 </Link>
-                <Link :href="login()" class="rounded-lg border px-5 py-2.5 text-sm">
-                    Sign in
+                <Link
+                    :href="register({ query: { type: 'talent' } })"
+                    class="cursor-pointer rounded-lg border px-5 py-2.5 text-sm"
+                >
+                    Join as talent
+                </Link>
+                <Link
+                    :href="register({ query: { type: 'explorer' } })"
+                    class="cursor-pointer rounded-lg border px-5 py-2.5 text-sm"
+                >
+                    Join as an explorer
                 </Link>
             </div>
 

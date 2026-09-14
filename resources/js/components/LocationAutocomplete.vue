@@ -224,8 +224,20 @@ const chooseCurrentLocation = async () => {
             return;
         }
 
+        const saved = await persistLiveLocation(coords.latitude, coords.longitude);
+        const label = saved?.label && saved.label.toLowerCase() !== 'current location'
+            && ! /^-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?$/.test(saved.label.trim())
+            ? saved.label
+            : '';
+
+        if (label === '') {
+            notifyError('Could not find a place name for your location. Please search for a city or place.');
+            return;
+        }
+
         selecting.value = true;
-        location.value = 'Current location';
+
+        location.value = label;
         latitude.value = coords.latitude;
         longitude.value = coords.longitude;
         placeId.value = '';
@@ -233,19 +245,16 @@ const chooseCurrentLocation = async () => {
         open.value = false;
         sessionToken.value = newSessionToken();
         if (!quiet) {
-            notifySuccess('Using your current location.');
+            notifySuccess(`Using ${label}.`);
         }
         emit('picked', {
-            label: 'Current location',
+            label,
             latitude: coords.latitude,
             longitude: coords.longitude,
             remote: false,
             current: true,
         });
         finishSelecting();
-        if (syncViewer) {
-            void persistLiveLocation(coords.latitude, coords.longitude);
-        }
     } finally {
         resolving.value = false;
     }

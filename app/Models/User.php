@@ -3,7 +3,10 @@
 namespace App\Models;
 
 use App\Enums\Gender;
+use App\Enums\SignalType;
+use App\Enums\UserType;
 use Database\Factories\UserFactory;
+use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Casts\Attribute;
@@ -14,6 +17,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Laravel\Fortify\Contracts\PasskeyUser;
 use Laravel\Fortify\PasskeyAuthenticatable;
 use Laravel\Fortify\TwoFactorAuthenticatable;
@@ -25,6 +29,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property string|null $last_name
  * @property string|null $business_name
  * @property string $username
+ * @property UserType $type
  * @property string $email
  * @property string|null $phone_country_code
  * @property string|null $phone_number
@@ -57,6 +62,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
     'last_name',
     'business_name',
     'username',
+    'type',
     'email',
     'phone_country_code',
     'phone_number',
@@ -71,7 +77,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
     'avatar_path',
 ])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token', 'latitude', 'longitude', 'location_updated_at', 'location_label', 'location_manual'])]
-class User extends Authenticatable implements PasskeyUser
+class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
 {
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable, PasskeyAuthenticatable, TwoFactorAuthenticatable;
@@ -88,6 +94,7 @@ class User extends Authenticatable implements PasskeyUser
             'password' => 'hashed',
             'two_factor_confirmed_at' => 'datetime',
             'gender' => Gender::class,
+            'type' => UserType::class,
             'date_of_birth' => 'date',
             'fiscal_year' => 'integer',
             'full_time_employees' => 'integer',
@@ -138,9 +145,109 @@ class User extends Authenticatable implements PasskeyUser
         return $this->hasOne(MentorProfile::class);
     }
 
+    /**
+     * @return HasOne<TalentProfile, $this>
+     */
+    public function talentProfile(): HasOne
+    {
+        return $this->hasOne(TalentProfile::class);
+    }
+
+    public function accountType(): UserType
+    {
+        return $this->type ?? UserType::Business;
+    }
+
+    public function isBusiness(): bool
+    {
+        return $this->accountType() === UserType::Business;
+    }
+
+    public function isTalent(): bool
+    {
+        return $this->accountType() === UserType::Talent;
+    }
+
+    public function isExplorer(): bool
+    {
+        return $this->accountType() === UserType::Explorer;
+    }
+
+    public function canCompose(SignalType $type, bool $isReply = false): bool
+    {
+        return $this->accountType()->canCompose($type, $isReply);
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function composeTypes(): array
+    {
+        return array_map(
+            fn (SignalType $type) => $type->value,
+            $this->accountType()->composeTypes(),
+        );
+    }
+
     public function displayName(): string
     {
-        return $this->business_name ?: $this->name;
+        if ($this->isBusiness()) {
+            return $this->business_name ?: $this->name;
+        }
+
+        $personal = trim(implode(' ', array_filter([$this->full_name, $this->last_name])));
+
+        return $personal !== '' ? $personal : $this->name;
+    }
+
+    public static function uniqueUsername(string $source): string
+    {
+        $base = Str::lower((string) preg_replace('/[^a-zA-Z0-9]+/', '_', $source));
+        $base = trim($base, '_') ?: 'user';
+        $base = Str::limit($base, 24, '');
+
+        if (strlen($base) < 3) {
+            $base .= Str::lower(Str::random(3 - strlen($base)));
+        }
+
+        $username = $base;
+        $suffix = 0;
+
+        while (self::query()->where('username', $username)->exists()) {
+            $suffix++;
+            $username = Str::limit($base, 24, '').$suffix;
+        }
+
+        return $username;
+    }
+
+    /**
+     * @param  array{headline: string, bio: string, skills?: list<string>|string|null, hourly_rate_cents?: int|null}  $data
+     */
+    public function becomeTalent(array $data): TalentProfile
+    {
+        abort_unless($this->isExplorer() || $this->isTalent(), 403);
+
+        $this->forceFill(['type' => UserType::Talent])->save();
+
+        if (blank($this->headline) && filled($data['headline'] ?? null)) {
+            $this->forceFill(['headline' => $data['headline']])->save();
+        }
+
+        if (blank($this->bio) && filled($data['bio'] ?? null)) {
+            $this->forceFill(['bio' => $data['bio']])->save();
+        }
+
+        return $this->talentProfile()->updateOrCreate(
+            ['user_id' => $this->id],
+            [
+                'headline' => $data['headline'],
+                'bio' => $data['bio'],
+                'skills' => $data['skills'] ?? [],
+                'hourly_rate_cents' => $data['hourly_rate_cents'] ?? null,
+                'is_available' => true,
+            ],
+        );
     }
 
     /**
@@ -169,6 +276,8 @@ class User extends Authenticatable implements PasskeyUser
             'last_name' => $this->last_name,
             'business_name' => $this->business_name,
             'username' => $this->username,
+            'type' => $this->accountType()->value,
+            'compose_types' => $this->composeTypes(),
             'email' => $this->email,
             'headline' => $this->headline,
             'bio' => $this->bio,
@@ -190,6 +299,7 @@ class User extends Authenticatable implements PasskeyUser
             'id' => $this->id,
             'name' => $this->displayName(),
             'username' => $this->username,
+            'type' => $this->accountType()->value,
             'headline' => $this->headline,
             'bio' => $this->bio,
             'website' => $this->website,

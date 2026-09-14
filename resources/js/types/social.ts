@@ -2,6 +2,7 @@ export type PublicUser = {
     id: number;
     name: string;
     username: string;
+    type?: 'business' | 'talent' | 'explorer';
     headline?: string | null;
     bio?: string | null;
     website?: string | null;

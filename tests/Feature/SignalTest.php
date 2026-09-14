@@ -30,7 +30,7 @@ test('authenticated users can view the feed', function () {
                 ->where('signals.data.0.id', $signal->public_id)
                 ->where('signals.data.0.type', 'drop')
                 ->where('signals.data.0.author.username', $user->username)
-                ->where('signals.per_page', 20))
+                ->where('signals.per_page', 10))
             ->loadDeferredProps('stories', fn ($page) => $page->has('stories'))
             ->loadDeferredProps('rail', fn ($page) => $page
                 ->has('rail.level')
@@ -79,9 +79,9 @@ test('the connections feed is empty until it is implemented', function () {
             ->loadDeferredProps('feed', fn ($page) => $page->has('signals.data', 0)));
 });
 
-test('the feed loads twenty signals at a time', function () {
+test('the feed loads ten signals at a time', function () {
     $user = User::factory()->create();
-    Signal::factory()->for($user)->count(21)->create();
+    Signal::factory()->for($user)->count(11)->create();
 
     $this->actingAs($user)
         ->get(route('dashboard'))
@@ -89,8 +89,8 @@ test('the feed loads twenty signals at a time', function () {
         ->assertInertia(fn ($page) => $page
             ->missing('signals')
             ->loadDeferredProps('feed', fn ($page) => $page
-                ->has('signals.data', 20)
-                ->where('signals.per_page', 20)
+                ->has('signals.data', 10)
+                ->where('signals.per_page', 10)
                 ->where('signals.last_page', 2)));
 });
 
@@ -715,9 +715,9 @@ test('the feed ranks nearby signals first when a location is provided', function
             ->where('viewerLongitude', -81.38)
             ->loadDeferredProps('feed', fn ($page) => $page
                 ->has('signals.data', 3)
-                ->where('signals.data.0.id', $near->public_id)
+                ->where('signals.data.0.id', $unlocated->public_id)
                 ->where('signals.data.1.id', $withinRadius->public_id)
-                ->where('signals.data.2.id', $unlocated->public_id)));
+                ->where('signals.data.2.id', $near->public_id)));
 });
 
 test('users can publish a poll', function () {

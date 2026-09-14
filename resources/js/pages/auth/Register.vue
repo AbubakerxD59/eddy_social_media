@@ -1,17 +1,20 @@
 <script setup lang="ts">
 import { Form, Head } from '@inertiajs/vue3';
-import { ref } from 'vue';
+import { Building2, Compass, Sparkles } from '@lucide/vue';
+import { computed, ref } from 'vue';
 import CountryCodeSelect from '@/components/CountryCodeSelect.vue';
 import InputError from '@/components/InputError.vue';
 import PasswordInput from '@/components/PasswordInput.vue';
 import PasswordStrength from '@/components/PasswordStrength.vue';
+import TalentFields from '@/components/TalentFields.vue';
 import TextLink from '@/components/TextLink.vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { notifySuccess } from '@/lib/notify';
+import { notifyFormError, notifySuccess } from '@/lib/notify';
 import { login } from '@/routes';
 import { store } from '@/routes/register';
+import type { UserType } from '@/types/auth';
 
 const password = ref('');
 const passwordConfirmation = ref('');
@@ -26,16 +29,60 @@ const maxDateOfBirth = (() => {
     return `${year}-${month}-${day}`;
 })();
 
-const { countryCodes, fiscalYears } = defineProps<{
+const { countryCodes, fiscalYears, accountType: initialAccountType } = defineProps<{
     passwordRules: string;
     countryCodes: { code: string; name: string; label: string }[];
     fiscalYears: number[];
+    accountType?: UserType | null;
 }>();
+
+const accountType = ref<UserType>(initialAccountType ?? 'business');
+
+const accountTypes: { value: UserType; title: string; description: string; icon: typeof Building2 }[] = [
+    {
+        value: 'business',
+        title: 'Business',
+        description: 'Hire, partner, and post needs for your company.',
+        icon: Building2,
+    },
+    {
+        value: 'talent',
+        title: 'Talent',
+        description: 'Offer freelance or professional services.',
+        icon: Sparkles,
+    },
+    {
+        value: 'explorer',
+        title: 'Explorer',
+        description: 'Browse every post and join the conversation as yourself.',
+        icon: Compass,
+    },
+];
+
+const layoutCopy = computed(() => {
+    switch (accountType.value) {
+        case 'talent':
+            return {
+                title: 'Join as talent',
+                description: 'Create your personal account and tell businesses what you offer.',
+            };
+        case 'explorer':
+            return {
+                title: 'Join as an explorer',
+                description: 'Create a personal account to view and interact with every kind of post.',
+            };
+        default:
+            return {
+                title: 'Create a business account',
+                description: 'Enter your details below to create your account',
+            };
+    }
+});
 
 defineOptions({
     layout: {
         title: 'Create an account',
-        description: 'Enter your details below to create your account',
+        description: 'Choose how you want to use Eddy',
         wide: true,
     },
 });
@@ -52,8 +99,37 @@ const selectClass =
         :reset-on-success="['password', 'password_confirmation']"
         v-slot="{ errors, processing }"
         class="flex flex-col gap-6"
-        @success="notifySuccess('Account created.')"
+        @success="notifySuccess('Account created. Check your email to verify.')"
+        @error="notifyFormError($event)"
     >
+        <input type="hidden" name="type" :value="accountType" />
+
+        <div class="grid gap-2">
+            <p class="text-sm font-medium">I am joining as</p>
+            <div class="grid gap-2 sm:grid-cols-3">
+                <button
+                    v-for="option in accountTypes"
+                    :key="option.value"
+                    type="button"
+                    class="flex cursor-pointer flex-col items-start gap-2 rounded-xl border px-3 py-3 text-left transition-colors"
+                    :class="
+                        accountType === option.value
+                            ? 'border-primary bg-primary/10'
+                            : 'hover:bg-accent/50'
+                    "
+                    @click="accountType = option.value"
+                >
+                    <component :is="option.icon" class="size-4" />
+                    <span class="text-sm font-semibold">{{ option.title }}</span>
+                    <span class="text-muted-foreground text-[11px] leading-snug">
+                        {{ option.description }}
+                    </span>
+                </button>
+            </div>
+            <InputError :message="errors.type" />
+            <p class="text-muted-foreground text-xs">{{ layoutCopy.description }}</p>
+        </div>
+
         <div class="grid gap-5">
             <div class="grid gap-5 sm:grid-cols-2">
                 <div class="grid gap-2">
@@ -148,7 +224,7 @@ const selectClass =
                 </div>
             </div>
 
-            <div class="grid gap-2">
+            <div v-if="accountType === 'business'" class="grid gap-2">
                 <Label for="business_name">Business name</Label>
                 <Input
                     id="business_name"
@@ -161,7 +237,7 @@ const selectClass =
                 <InputError :message="errors.business_name" />
             </div>
 
-            <div class="grid gap-5 sm:grid-cols-2">
+            <div v-if="accountType === 'business'" class="grid gap-5 sm:grid-cols-2">
                 <div class="grid gap-2">
                     <Label for="fiscal_year">Most recent complete fiscal year</Label>
                     <select
@@ -196,6 +272,12 @@ const selectClass =
                     <InputError :message="errors.full_time_employees" />
                 </div>
             </div>
+
+            <TalentFields
+                v-if="accountType === 'talent'"
+                prefix="talent_"
+                :errors="errors"
+            />
 
             <div class="grid gap-2">
                 <Label for="password">Password</Label>

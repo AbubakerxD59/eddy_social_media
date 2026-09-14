@@ -27,4 +27,13 @@ class DashboardTest extends TestCase
             ->component('Feed')
             ->where('highlight', null));
     }
+
+    public function test_unverified_users_are_redirected_to_verify_their_email()
+    {
+        $user = User::factory()->unverified()->create();
+        $this->actingAs($user);
+
+        $this->get(route('dashboard'))
+            ->assertRedirect(route('verification.notice'));
+    }
 }

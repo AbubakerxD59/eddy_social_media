@@ -10,8 +10,8 @@ import type { FeedSignal, Paginator, SignalType } from '@/types/social';
 
 type FeedFilter = 'for-you' | 'connections' | 'opportunity' | 'need';
 
-const PAGE_SIZE = 20;
-const PREFETCH_AT = 15;
+const PAGE_SIZE = 10;
+const PREFETCH_AT = 7;
 
 const props = defineProps<{
     signals?: Paginator<FeedSignal> | null;

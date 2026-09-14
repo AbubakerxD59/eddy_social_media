@@ -3,8 +3,13 @@
 namespace App\Providers;
 
 use Carbon\CarbonImmutable;
+use Illuminate\Auth\Events\Registered;
+use Illuminate\Auth\Listeners\SendEmailVerificationNotification;
+use Illuminate\Auth\Notifications\VerifyEmail;
+use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
@@ -25,6 +30,7 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->configureDefaults();
+        $this->configureEmailVerification();
     }
 
     /**
@@ -53,6 +59,24 @@ class AppServiceProvider extends ServiceProvider
             }
 
             return $rule;
+        });
+    }
+
+    protected function configureEmailVerification(): void
+    {
+        Event::listen(Registered::class, SendEmailVerificationNotification::class);
+
+        VerifyEmail::toMailUsing(function (object $notifiable, string $url): MailMessage {
+            $name = method_exists($notifiable, 'displayName')
+                ? $notifiable->displayName()
+                : ($notifiable->name ?? 'there');
+
+            return (new MailMessage)
+                ->subject('Verify your '.config('app.name').' account')
+                ->greeting('Hi '.$name.',')
+                ->line('Thanks for creating an account. Click the button below to verify your email and open your dashboard.')
+                ->action('Verify email address', $url)
+                ->line('If you did not create this account, you can ignore this email.');
         });
     }
 }

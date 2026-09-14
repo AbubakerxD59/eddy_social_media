@@ -41,12 +41,33 @@ const mainNav: NavItem[] = [
     { title: 'Opportunities', href: '/opportunities', icon: Rocket },
 ];
 
-const spaceNav = computed<NavItem[]>(() => [
-    { title: 'My Business', href: user.value ? `/@${user.value.username}` : '/dashboard', icon: Store },
-    { title: 'My Needs', href: '/dashboard?filter=need', icon: Briefcase },
-    { title: 'My Projects', href: '/projects', icon: FolderKanban },
-    { title: 'My Wallet', href: '/wallet', icon: Wallet },
-]);
+const spaceNav = computed<NavItem[]>(() => {
+    const profileTitle =
+        user.value?.type === 'business'
+            ? 'My Business'
+            : user.value?.type === 'talent'
+                ? 'My Talent'
+                : 'My Profile';
+
+    const items: NavItem[] = [
+        { title: profileTitle, href: user.value ? `/@${user.value.username}` : '/dashboard', icon: Store },
+    ];
+
+    if (user.value?.type === 'explorer') {
+        items.push({ title: 'Become talent', href: '/mentors', icon: Sparkles });
+    }
+
+    if (user.value?.type !== 'explorer') {
+        items.push({ title: 'My Needs', href: '/dashboard?filter=need', icon: Briefcase });
+    }
+
+    items.push(
+        { title: 'My Projects', href: '/projects', icon: FolderKanban },
+        { title: 'My Wallet', href: '/wallet', icon: Wallet },
+    );
+
+    return items;
+});
 
 const circles = [
     { title: 'Real Estate Owners', href: '/circles', color: 'bg-need' },

@@ -4,15 +4,20 @@ namespace App\Providers;
 
 use App\Actions\Fortify\CreateNewUser;
 use App\Actions\Fortify\ResetUserPassword;
+use App\Enums\UserType;
 use App\Support\CountryCallingCodes;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\Password;
 use Inertia\Inertia;
+use Laravel\Fortify\Contracts\EmailVerificationNotificationSentResponse;
+use Laravel\Fortify\Contracts\LoginResponse;
 use Laravel\Fortify\Contracts\LogoutResponse;
+use Laravel\Fortify\Contracts\RegisterResponse;
 use Laravel\Fortify\Features;
 use Laravel\Fortify\Fortify;
 
@@ -30,6 +35,41 @@ class FortifyServiceProvider extends ServiceProvider
                 Inertia::flash('toast', ['type' => 'success', 'message' => __('You have been logged out.')]);
 
                 return redirect('/');
+            }
+        });
+
+        $this->app->instance(RegisterResponse::class, new class implements RegisterResponse
+        {
+            public function toResponse($request)
+            {
+                return redirect()->route('verification.notice');
+            }
+        });
+
+        $this->app->instance(LoginResponse::class, new class implements LoginResponse
+        {
+            public function toResponse($request)
+            {
+                $user = $request->user();
+
+                if ($user instanceof MustVerifyEmail && ! $user->hasVerifiedEmail()) {
+                    return redirect()->route('verification.notice');
+                }
+
+                return redirect()->intended(Fortify::redirects('login'));
+            }
+        });
+
+        $this->app->instance(EmailVerificationNotificationSentResponse::class, new class implements EmailVerificationNotificationSentResponse
+        {
+            public function toResponse($request)
+            {
+                Inertia::flash('toast', [
+                    'type' => 'success',
+                    'message' => __('A new verification link has been sent.'),
+                ]);
+
+                return back()->with('status', Fortify::VERIFICATION_LINK_SENT);
             }
         });
     }
@@ -77,10 +117,11 @@ class FortifyServiceProvider extends ServiceProvider
             'status' => $request->session()->get('status'),
         ]));
 
-        Fortify::registerView(fn () => Inertia::render('auth/Register', [
+        Fortify::registerView(fn (Request $request) => Inertia::render('auth/Register', [
             'passwordRules' => Password::defaults()->toPasswordRulesString(),
             'countryCodes' => CountryCallingCodes::options(),
             'fiscalYears' => range(now()->year, now()->year - 15),
+            'accountType' => UserType::tryFrom((string) $request->query('type'))?->value,
         ]));
 
         Fortify::twoFactorChallengeView(fn () => Inertia::render('auth/TwoFactorChallenge'));

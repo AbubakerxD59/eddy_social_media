@@ -10,7 +10,7 @@ import { edit } from '@/routes/profile';
 import type { FeedSignal, Paginator, PublicUser } from '@/types/social';
 
 const props = defineProps<{
-    profile: PublicUser & { is_mentor: boolean; is_own: boolean };
+    profile: PublicUser & { is_mentor: boolean; is_talent: boolean; is_own: boolean };
     signals?: Paginator<FeedSignal> | null;
 }>();
 
@@ -39,6 +39,12 @@ const items = computed(() => props.signals?.data ?? []);
             </div>
             <h1 class="mt-4 text-2xl font-semibold">{{ profile.name }}</h1>
             <p class="text-muted-foreground">@{{ profile.username }}</p>
+            <p
+                v-if="profile.type"
+                class="mt-2 inline-flex rounded-full border px-2 py-0.5 text-xs font-medium capitalize"
+            >
+                {{ profile.type }}
+            </p>
             <p v-if="profile.headline" class="mt-2 font-medium">
                 {{ profile.headline }}
             </p>
@@ -54,7 +60,10 @@ const items = computed(() => props.signals?.data ?? []);
             >
                 {{ profile.website }}
             </a>
-            <p v-if="profile.is_mentor" class="mt-3 text-sm font-medium">
+            <p v-if="profile.is_talent" class="mt-3 text-sm font-medium">
+                Available as talent
+            </p>
+            <p v-else-if="profile.is_mentor" class="mt-3 text-sm font-medium">
                 Open to mentoring
             </p>
         </div>

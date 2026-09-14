@@ -24,7 +24,7 @@ const user = computed(() => page.props.auth.user);
         <Heading
             variant="small"
             title="Profile"
-            description="How other founders see you on Eddy"
+            description="How people see you on Eddy"
         />
 
         <Form
@@ -33,15 +33,15 @@ const user = computed(() => page.props.auth.user);
             v-slot="{ errors, processing }"
         >
             <div class="grid gap-2">
-                <Label for="name">Business name</Label>
+                <Label for="name">{{ user.type === 'business' ? 'Business name' : 'Name' }}</Label>
                 <Input
                     id="name"
                     class="mt-1 block w-full"
                     name="name"
-                    :default-value="user.business_name || user.name"
+                    :default-value="user.type === 'business' ? (user.business_name || user.name) : user.name"
                     required
-                    autocomplete="organization"
-                    placeholder="Business name"
+                    :autocomplete="user.type === 'business' ? 'organization' : 'name'"
+                    :placeholder="user.type === 'business' ? 'Business name' : 'Your name'"
                 />
                 <InputError class="mt-2" :message="errors.name" />
             </div>

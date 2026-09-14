@@ -41,6 +41,7 @@ const composer = useSignalComposer({
 
 const {
     user,
+    allowedTypes,
     form,
     isReply,
     meta,
@@ -131,6 +132,7 @@ onMounted(() => {
     >
         <SignalTypePicker
             :model-value="dialogOpen ? form.type : null"
+            :allowed-types="allowedTypes"
             @update:model-value="openType"
         />
     </section>
@@ -215,6 +217,7 @@ onMounted(() => {
             <SignalTypePicker
                 v-if="!isReply && variant === 'dock'"
                 :model-value="form.type"
+                :allowed-types="allowedTypes"
                 compact
                 class="pt-1"
                 @update:model-value="setType"

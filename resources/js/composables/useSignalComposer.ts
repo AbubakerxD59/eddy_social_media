@@ -46,6 +46,15 @@ export function useSignalComposer(
     options: { onSuccess?: () => void; parentId?: string; initialType?: SignalType; editing?: FeedSignal } = {},
 ) {
     const user = computed(() => usePage().props.auth.user);
+    const allowedTypes = computed<SignalType[]>(() => {
+        const types = user.value?.compose_types;
+
+        if (!Array.isArray(types) || types.length === 0) {
+            return ['drop', 'need', 'opportunity', 'poll'];
+        }
+
+        return types as SignalType[];
+    });
     const bodyEditor = ref<{ focus: () => void } | null>(null);
     const titleInput = ref<HTMLInputElement | null>(null);
     const previewing = ref(false);
@@ -58,6 +67,20 @@ export function useSignalComposer(
 
     const isEditing = computed(() => Boolean(options.editing));
     const isReply = computed(() => Boolean(options.parentId) || Boolean(options.editing?.is_reply));
+
+    watch(
+        allowedTypes,
+        (types) => {
+            if (isReply.value || isEditing.value) {
+                return;
+            }
+
+            if (!types.includes(form.type)) {
+                form.type = types[0] ?? 'drop';
+            }
+        },
+        { immediate: true },
+    );
     const meta = computed(() => signalTypeMeta(form.type));
 
     const bodyText = computed(() => htmlToPlainText(form.body));
@@ -165,6 +188,10 @@ export function useSignalComposer(
 
     const setType = (type: SignalType) => {
         if (isReply.value || isEditing.value) {
+            return;
+        }
+
+        if (!allowedTypes.value.includes(type)) {
             return;
         }
 
@@ -322,6 +349,7 @@ export function useSignalComposer(
 
     return {
         user,
+        allowedTypes,
         form,
         bodyEditor,
         titleInput,

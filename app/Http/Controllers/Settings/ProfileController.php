@@ -37,7 +37,7 @@ class ProfileController extends Controller
             $user->email_verified_at = null;
         }
 
-        if ($user->isDirty('name')) {
+        if ($user->isBusiness() && $user->isDirty('name')) {
             $user->business_name = $user->name;
         }
 

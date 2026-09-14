@@ -9,8 +9,10 @@ use App\Http\Controllers\PublicStorageController;
 use App\Http\Controllers\SignalController;
 use App\Http\Controllers\SignalUploadController;
 use App\Http\Controllers\StoryController;
+use App\Http\Controllers\TalentController;
 use App\Http\Controllers\UserLocationController;
 use App\Http\Controllers\UserMuteController;
+use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -19,7 +21,13 @@ Route::get('/storage/{path}', PublicStorageController::class)
     ->name('storage.show');
 
 Route::get('/', function () {
-    if (auth()->check()) {
+    $user = auth()->user();
+
+    if ($user) {
+        if ($user instanceof MustVerifyEmail && ! $user->hasVerifiedEmail()) {
+            return redirect()->route('verification.notice');
+        }
+
         return redirect()->route('dashboard');
     }
 
@@ -57,6 +65,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::get('mentors', [MentorController::class, 'index'])->name('mentors.index');
     Route::post('mentors', [MentorController::class, 'store'])->name('mentors.store');
+    Route::post('talent', [TalentController::class, 'store'])->name('talent.store');
 
     Route::inertia('messages', 'ComingSoon', [
         'title' => 'Messages',

@@ -86,12 +86,12 @@ const postViewerOrigin = async (
     longitude: number,
     options: PersistLocationOptions,
 ): Promise<StoredViewerOrigin | null> => {
-    const fallback: StoredViewerOrigin = {
-        latitude,
-        longitude,
-        label: options.label ?? lastPosted?.label ?? 'Current location',
-        manual: options.manual ?? lastPosted?.manual ?? false,
-    };
+        const fallback: StoredViewerOrigin = {
+            latitude,
+            longitude,
+            label: options.label ?? lastPosted?.label ?? null,
+            manual: options.manual ?? lastPosted?.manual ?? false,
+        };
 
     try {
         const response = await fetch('/location', {
