@@ -42,12 +42,6 @@ watchEffect(() => {
         >
             {{ email }}
         </p>
-        <p class="text-muted-foreground text-sm leading-relaxed">
-            Open that inbox and click the verification link before you can use the dashboard.
-        </p>
-        <p class="text-muted-foreground text-sm leading-relaxed">
-            Did not get it, or did you delete or misplace the email? Send a new link.
-        </p>
 
         <Form
             v-bind="send.form()"
