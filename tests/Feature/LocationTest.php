@@ -276,6 +276,55 @@ test('the feed expands the search radius when nothing is nearby', function () {
                 ->where('signals.data.1.id', $within500->public_id)));
 });
 
+test('the feed expands past 1000km in 250km steps until posts are found', function () {
+    $user = User::factory()->create([
+        'latitude' => 28.54,
+        'longitude' => -81.38,
+        'location_updated_at' => now(),
+    ]);
+
+    $far = Signal::factory()->for($user)->need()->at(40.7128, -74.006, 'New York, NY')->create();
+
+    $this->actingAs($user)
+        ->get(route('dashboard'))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->loadDeferredProps('feed', fn ($page) => $page
+                ->has('signals.data', 1)
+                ->where('signals.data.0.id', $far->public_id)));
+});
+
+test('a discovered radius beyond 1000km becomes the new initial window', function () {
+    $user = User::factory()->create([
+        'latitude' => 28.54,
+        'longitude' => -81.38,
+        'location_updated_at' => now(),
+    ]);
+
+    Signal::factory()->for($user)->count(11)->at(40.7128, -74.006, 'New York, NY')->create();
+    $farther = Signal::factory()->for($user)->need()->at(51.5074, -0.1278, 'London, UK')->create([
+        'created_at' => now()->addHour(),
+    ]);
+
+    $this->actingAs($user)
+        ->get(route('dashboard'))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->loadDeferredProps('feed', fn ($page) => $page
+                ->has('signals.data', 10)
+                ->where('signals.last_page', 2)
+                ->where('signals.data', fn ($signals) => collect($signals)->pluck('id')->doesntContain($farther->public_id))));
+
+    $this->actingAs($user)
+        ->get(route('dashboard', ['page' => 2]))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->loadDeferredProps('feed', fn ($page) => $page
+                ->has('signals.data', 1)
+                ->where('signals.current_page', 2)
+                ->where('signals.data', fn ($signals) => collect($signals)->pluck('id')->doesntContain($farther->public_id))));
+});
+
 test('the feed paginates ten nearby signals at a time', function () {
     $user = User::factory()->create([
         'latitude' => 28.54,

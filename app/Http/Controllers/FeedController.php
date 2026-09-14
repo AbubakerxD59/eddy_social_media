@@ -24,12 +24,11 @@ class FeedController extends Controller
 
     public const INITIAL_RADIUS_KM = 250;
 
-    public const MAX_RADIUS_KM = 1000;
+    public const RADIUS_STEP_KM = 250;
 
-    /**
-     * @var list<int>
-     */
-    public const FEED_RADII_KM = [250, 500, 1000];
+    public const RADIUS_WINDOW_KM = 1000;
+
+    public const MAX_SEARCH_RADIUS_KM = 20_037;
 
     private const KM_PER_DEGREE = 111.045;
 
@@ -223,7 +222,7 @@ class FeedController extends Controller
 
         $previousKm = 0;
 
-        foreach (self::FEED_RADII_KM as $radiusKm) {
+        foreach (self::feedRadiiKm($query, $latitude, $longitude) as $radiusKm) {
             $ringQuery = self::applyRingFilter(
                 (clone $query)->reorder(),
                 $latitude,
@@ -268,6 +267,77 @@ class FeedController extends Controller
                 'query' => $request->query(),
             ],
         );
+    }
+
+    /**
+     * @param  Builder<Signal>  $query
+     * @return list<int>
+     */
+    private static function feedRadiiKm(Builder $query, float $latitude, float $longitude): array
+    {
+        $base = self::resolvedBaseRadiusKm($query, $latitude, $longitude);
+
+        return array_values(array_unique([
+            $base,
+            min($base + self::RADIUS_STEP_KM, self::MAX_SEARCH_RADIUS_KM),
+            min($base + self::RADIUS_WINDOW_KM, self::MAX_SEARCH_RADIUS_KM),
+        ]));
+    }
+
+    /**
+     * @param  Builder<Signal>  $query
+     */
+    private static function resolvedBaseRadiusKm(Builder $query, float $latitude, float $longitude): int
+    {
+        if (self::existsInRing($query, $latitude, $longitude, 0, self::RADIUS_WINDOW_KM, includeUnlocated: true)) {
+            return self::INITIAL_RADIUS_KM;
+        }
+
+        $radius = self::RADIUS_WINDOW_KM + self::RADIUS_STEP_KM;
+
+        while ($radius < self::MAX_SEARCH_RADIUS_KM) {
+            if (self::existsWithinRadius($query, $latitude, $longitude, $radius)) {
+                return $radius;
+            }
+
+            $radius += self::RADIUS_STEP_KM;
+        }
+
+        return self::MAX_SEARCH_RADIUS_KM;
+    }
+
+    /**
+     * @param  Builder<Signal>  $query
+     */
+    private static function existsInRing(
+        Builder $query,
+        float $latitude,
+        float $longitude,
+        int $minKm,
+        int $maxKm,
+        bool $includeUnlocated,
+    ): bool {
+        return self::applyRingFilter(
+            (clone $query)->reorder(),
+            $latitude,
+            $longitude,
+            $minKm,
+            $maxKm,
+            $includeUnlocated,
+        )->exists();
+    }
+
+    /**
+     * @param  Builder<Signal>  $query
+     */
+    private static function existsWithinRadius(Builder $query, float $latitude, float $longitude, int $radiusKm): bool
+    {
+        return self::applyRadiusFilter(
+            (clone $query)->reorder(),
+            $latitude,
+            $longitude,
+            $radiusKm,
+        )->exists();
     }
 
     /**
