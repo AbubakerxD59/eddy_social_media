@@ -29,7 +29,9 @@ class EmailVerificationTest extends TestCase
         $response = $this->actingAs($user)->get(route('verification.notice'));
 
         $response->assertOk();
-        $response->assertInertia(fn (Assert $page) => $page->component('auth/VerifyEmail'));
+        $response->assertInertia(fn (Assert $page) => $page
+            ->component('auth/VerifyEmail')
+            ->where('email', $user->email));
     }
 
     public function test_email_can_be_verified()

@@ -1,24 +1,27 @@
 <script setup lang="ts">
-import { Form, Head, usePage } from '@inertiajs/vue3';
-import { computed } from 'vue';
+import { Form, Head, setLayoutProps, usePage } from '@inertiajs/vue3';
+import { computed, watchEffect } from 'vue';
 import TextLink from '@/components/TextLink.vue';
 import { Button } from '@/components/ui/button';
 import { notifyFormError, notifySuccess } from '@/lib/notify';
 import { logout } from '@/routes';
 import { send } from '@/routes/verification';
 
-defineOptions({
-    layout: {
-        title: 'Verify your email',
-        description: 'Confirm your email address to open your dashboard.',
-    },
-});
-
-defineProps<{
+const props = defineProps<{
     status?: string;
+    email?: string | null;
 }>();
 
-const email = computed(() => usePage().props.auth.user?.email);
+const email = computed(() => props.email || usePage().props.auth.user?.email || null);
+
+watchEffect(() => {
+    setLayoutProps({
+        title: 'Verify your email',
+        description: email.value
+            ? `We sent a verification link to ${email.value}. Click that link to open your dashboard.`
+            : 'Confirm your email address to open your dashboard.',
+    });
+});
 </script>
 
 <template>
@@ -29,13 +32,18 @@ const email = computed(() => usePage().props.auth.user?.email);
             v-if="status === 'verification-link-sent'"
             class="text-sm font-medium text-green-600"
         >
-            A new verification link has been sent to {{ email }}.
+            A new verification link has been sent to
+            <span class="break-all">{{ email }}</span>.
         </div>
 
+        <p
+            v-if="email"
+            class="text-foreground text-sm font-medium break-all"
+        >
+            {{ email }}
+        </p>
         <p class="text-muted-foreground text-sm leading-relaxed">
-            We sent a verification link to
-            <span class="text-foreground font-medium">{{ email }}</span>.
-            Open that email and click the link before you can use the dashboard.
+            Open that inbox and click the verification link before you can use the dashboard.
         </p>
         <p class="text-muted-foreground text-sm leading-relaxed">
             Did not get it, or did you delete or misplace the email? Send a new link.
