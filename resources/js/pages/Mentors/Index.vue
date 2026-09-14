@@ -2,12 +2,14 @@
 import { Deferred, Form, Head, InfiniteScroll, Link } from '@inertiajs/vue3';
 import TalentFields from '@/components/TalentFields.vue';
 import InputError from '@/components/InputError.vue';
+import MoneyInput from '@/components/MoneyInput.vue';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getInitials } from '@/composables/useInitials';
+import { formatUsdHourly } from '@/lib/currency';
 import { notifyFormError, notifySuccess } from '@/lib/notify';
 import type { Paginator, PublicUser } from '@/types/social';
 
@@ -125,15 +127,16 @@ defineProps<{
                     <InputError :message="errors.bio" />
                 </div>
                 <div class="grid gap-2">
-                    <Label for="hourly_rate_cents">Rate (cents / hour)</Label>
-                    <Input
-                        id="hourly_rate_cents"
-                        name="hourly_rate_cents"
+                    <Label for="hourly_rate">Hourly rate in USD</Label>
+                    <MoneyInput
+                        id="hourly_rate"
+                        name="hourly_rate"
                         type="number"
                         min="0"
-                        placeholder="15000"
+                        step="1"
+                        placeholder="150"
                     />
-                    <InputError :message="errors.hourly_rate_cents" />
+                    <InputError :message="errors.hourly_rate" />
                 </div>
                 <div class="flex items-end">
                     <Button type="submit" :loading="processing">
@@ -192,10 +195,10 @@ defineProps<{
                             {{ mentor.skills.join(' · ') }}
                         </p>
                         <p
-                            v-if="mentor.hourly_rate_cents"
+                            v-if="formatUsdHourly(mentor.hourly_rate_cents)"
                             class="mt-3 text-sm font-medium"
                         >
-                            ${{ (mentor.hourly_rate_cents / 100).toFixed(0) }} / hour
+                            {{ formatUsdHourly(mentor.hourly_rate_cents) }}
                         </p>
                     </Link>
                 </div>

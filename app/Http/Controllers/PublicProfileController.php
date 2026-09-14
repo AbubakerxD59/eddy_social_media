@@ -18,6 +18,8 @@ class PublicProfileController extends Controller
                 'is_mentor' => $user->mentorProfile !== null,
                 'is_talent' => $user->isTalent(),
                 'is_own' => auth()->id() === $user->id,
+                'hourly_rate_cents' => $user->talentProfile?->hourly_rate_cents
+                    ?? $user->mentorProfile?->hourly_rate_cents,
             ],
             'signals' => Inertia::scroll(
                 fn () => FeedController::paginatedSignals(request(), null, $user->id),

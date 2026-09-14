@@ -26,7 +26,7 @@ test('users can list themselves as mentors', function () {
         ->post(route('mentors.store'), [
             'headline' => 'B2B sales systems',
             'bio' => 'I help first-time founders close their first ten customers.',
-            'hourly_rate_cents' => 20000,
+            'hourly_rate' => 200,
         ])
         ->assertRedirect(route('mentors.index'));
 
@@ -34,6 +34,7 @@ test('users can list themselves as mentors', function () {
         'user_id' => $user->id,
         'is_accepting_bookings' => true,
         'headline' => 'B2B sales systems',
+        'hourly_rate_cents' => 20000,
     ]);
 
     $this->actingAs($user)
@@ -54,6 +55,7 @@ test('talent profiles appear in the hub and on the public profile', function () 
             'headline' => 'Product ops',
             'bio' => 'I help teams ship.',
             'skills' => 'Ops, process',
+            'hourly_rate' => 200,
         ])
         ->assertRedirect(route('mentors.index'));
 
@@ -71,6 +73,7 @@ test('talent profiles appear in the hub and on the public profile', function () 
         ->assertInertia(fn ($page) => $page
             ->where('profile.is_talent', true)
             ->where('profile.type', 'talent')
+            ->where('profile.hourly_rate_cents', 20000)
             ->where('profile.is_own', true));
 });
 

@@ -612,6 +612,22 @@ test('users can publish a need', function () {
         ]);
 });
 
+test('need budgets are stored in usd', function () {
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->post(route('signals.store'), [
+            'type' => SignalType::Need->value,
+            'title' => 'Need a contractor',
+            'budget' => '€2,500',
+        ])
+        ->assertRedirect();
+
+    expect(Signal::query()->first()?->payload)->toMatchArray([
+        'budget' => '$2,500',
+    ]);
+});
+
 test('need signals require a title', function () {
     $user = User::factory()->create();
 

@@ -6,11 +6,17 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getInitials } from '@/composables/useInitials';
+import { formatUsdHourly } from '@/lib/currency';
 import { edit } from '@/routes/profile';
 import type { FeedSignal, Paginator, PublicUser } from '@/types/social';
 
 const props = defineProps<{
-    profile: PublicUser & { is_mentor: boolean; is_talent: boolean; is_own: boolean };
+    profile: PublicUser & {
+        is_mentor: boolean;
+        is_talent: boolean;
+        is_own: boolean;
+        hourly_rate_cents?: number | null;
+    };
     signals?: Paginator<FeedSignal> | null;
 }>();
 
@@ -60,6 +66,9 @@ const items = computed(() => props.signals?.data ?? []);
             >
                 {{ profile.website }}
             </a>
+            <p v-if="formatUsdHourly(profile.hourly_rate_cents)" class="mt-2 text-sm font-medium">
+                {{ formatUsdHourly(profile.hourly_rate_cents) }}
+            </p>
             <p v-if="profile.is_talent" class="mt-3 text-sm font-medium">
                 Available as talent
             </p>

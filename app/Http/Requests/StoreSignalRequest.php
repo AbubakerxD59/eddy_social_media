@@ -5,6 +5,7 @@ namespace App\Http\Requests;
 use App\Enums\SignalType;
 use App\Models\SignalUpload;
 use App\Support\HtmlBody;
+use App\Support\Usd;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\UploadedFile;
@@ -32,6 +33,14 @@ class StoreSignalRequest extends FormRequest
             $this->merge([
                 'body' => HtmlBody::sanitize($this->input('body')),
             ]);
+        }
+
+        foreach (['budget', 'project_value'] as $field) {
+            if ($this->exists($field)) {
+                $this->merge([
+                    $field => Usd::display($this->input($field)),
+                ]);
+            }
         }
     }
 

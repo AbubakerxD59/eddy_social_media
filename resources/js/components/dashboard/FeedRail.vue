@@ -6,6 +6,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getInitials } from '@/composables/useInitials';
+import { formatUsdAmount } from '@/lib/currency';
 
 const page = usePage();
 const rail = computed(() => page.props.rail);
@@ -79,7 +80,7 @@ const events = [
                 >
                     <span class="text-[13px] font-medium">{{ need.title }}</span>
                     <span class="text-need mt-1 text-[12px] font-semibold">
-                        {{ need.budget || 'Budget on request' }}
+                        {{ formatUsdAmount(need.budget) || 'Budget on request' }}
                     </span>
                     <span
                         v-if="need.location"

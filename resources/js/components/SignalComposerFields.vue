@@ -8,6 +8,7 @@ import InputError from '@/components/InputError.vue';
 import LinkPreviewCard from '@/components/LinkPreviewCard.vue';
 import LocationAutocomplete from '@/components/LocationAutocomplete.vue';
 import ThreadAvatar from '@/components/ThreadAvatar.vue';
+import MoneyInput from '@/components/MoneyInput.vue';
 import TimelineDurationField from '@/components/TimelineDurationField.vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -110,7 +111,12 @@ const setBodyEditor = (el: unknown) => {
                 v-if="form.type === 'need'"
                 class="mt-3 grid grid-cols-2 gap-2"
             >
-                <Input v-model="form.budget" placeholder="Budget" class="h-9 rounded-lg" />
+                <MoneyInput
+                    v-model="form.budget"
+                    placeholder="5,000 or 500 – 1,000"
+                    aria-label="Budget in USD"
+                    class="h-9 rounded-lg"
+                />
                 <div class="space-y-1">
                     <TimelineDurationField
                         v-model:amount="form.timeline_amount"
@@ -136,7 +142,12 @@ const setBodyEditor = (el: unknown) => {
                 v-else-if="form.type === 'opportunity'"
                 class="mt-3 grid grid-cols-2 gap-2"
             >
-                <Input v-model="form.project_value" placeholder="Project value" class="h-9 rounded-lg" />
+                <MoneyInput
+                    v-model="form.project_value"
+                    placeholder="250,000"
+                    aria-label="Project value in USD"
+                    class="h-9 rounded-lg"
+                />
                 <div class="space-y-1">
                     <TimelineDurationField
                         v-model:amount="form.timeline_amount"

@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Models\UserMute;
 use App\Services\GooglePlacesService;
 use App\Support\HtmlBody;
+use App\Support\Usd;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
@@ -150,7 +151,7 @@ class FeedController extends Controller
             ->map(fn (Signal $signal): array => [
                 'id' => $signal->public_id,
                 'title' => $signal->title ?: Str::limit(HtmlBody::plainText($signal->body), 52),
-                'budget' => is_array($signal->payload) ? ($signal->payload['budget'] ?? null) : null,
+                'budget' => is_array($signal->payload) ? Usd::display($signal->payload['budget'] ?? null) : null,
                 'location' => is_array($signal->payload) ? ($signal->payload['location'] ?? null) : null,
             ])
             ->values()
@@ -849,7 +850,7 @@ class FeedController extends Controller
         $payload = $signal->payload ?? [];
 
         return [
-            'budget' => isset($payload['budget']) ? (string) $payload['budget'] : null,
+            'budget' => Usd::display($payload['budget'] ?? null),
             'timeline' => isset($payload['timeline']) ? (string) $payload['timeline'] : null,
             'location' => isset($payload['location']) ? (string) $payload['location'] : null,
             'skills' => self::stringList($payload['skills'] ?? []),
@@ -868,7 +869,7 @@ class FeedController extends Controller
         $payload = $signal->payload ?? [];
 
         return [
-            'project_value' => isset($payload['project_value']) ? (string) $payload['project_value'] : null,
+            'project_value' => Usd::display($payload['project_value'] ?? null),
             'timeline' => isset($payload['timeline']) ? (string) $payload['timeline'] : null,
             'location' => isset($payload['location']) ? (string) $payload['location'] : null,
             'trades' => self::stringList($payload['trades'] ?? []),

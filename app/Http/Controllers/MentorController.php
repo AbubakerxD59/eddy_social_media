@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\MentorProfile;
 use App\Models\TalentProfile;
+use App\Support\TalentSkills;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -36,13 +37,15 @@ class MentorController extends Controller
         $validated = $request->validate([
             'headline' => ['nullable', 'string', 'max:160'],
             'bio' => ['nullable', 'string', 'max:500'],
-            'hourly_rate_cents' => ['nullable', 'integer', 'min:0'],
+            'hourly_rate' => ['nullable', 'numeric', 'min:0', 'max:10000'],
         ]);
 
         MentorProfile::query()->updateOrCreate(
             ['user_id' => $request->user()->id],
             [
-                ...$validated,
+                'headline' => $validated['headline'] ?? null,
+                'bio' => $validated['bio'] ?? null,
+                'hourly_rate_cents' => TalentSkills::centsFromRate($validated['hourly_rate'] ?? null),
                 'is_accepting_bookings' => true,
             ],
         );

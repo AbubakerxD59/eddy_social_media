@@ -1,6 +1,7 @@
 import { useForm, usePage } from '@inertiajs/vue3';
 import { computed, nextTick, ref, watch } from 'vue';
 import { firstCaptionUrl, urlsMatch } from '@/lib/captionUrl';
+import { usdInputValue } from '@/lib/currency';
 import { csrfHeaders } from '@/lib/csrf';
 import { htmlToPlainText } from '@/lib/htmlBody';
 import { notifyError, notifyFormError, notifySuccess } from '@/lib/notify';
@@ -22,7 +23,7 @@ const composerDefaults = (options: { parentId?: string; initialType?: SignalType
         parent_id: signal ? '' : (options.parentId ?? ''),
         title: signal?.title ?? '',
         body: signal?.body ?? '',
-        budget: signal?.need?.budget ?? '',
+        budget: usdInputValue(signal?.need?.budget),
         timeline: '',
         timeline_amount: timeline.amount,
         timeline_unit: timeline.unit,
@@ -31,7 +32,7 @@ const composerDefaults = (options: { parentId?: string; initialType?: SignalType
         longitude: signal?.longitude ?? null,
         place_id: signal?.place_id ?? '',
         skills: signal?.need?.skills.join(', ') ?? '',
-        project_value: signal?.opportunity?.project_value ?? '',
+        project_value: usdInputValue(signal?.opportunity?.project_value),
         trades: signal?.opportunity?.trades.join(', ') ?? '',
         poll_options: pollOptions.length >= 2 ? pollOptions : [...pollOptions, ...emptyPollOptions()].slice(0, 2),
         link_url: signal?.link?.url ?? '',

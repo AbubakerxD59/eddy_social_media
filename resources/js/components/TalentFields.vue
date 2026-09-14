@@ -2,7 +2,7 @@
 import { X } from '@lucide/vue';
 import { computed, ref, watch } from 'vue';
 import InputError from '@/components/InputError.vue';
-import { Input } from '@/components/ui/input';
+import MoneyInput from '@/components/MoneyInput.vue';
 import { Label } from '@/components/ui/label';
 
 const TALENT_BIO_MAX = 1200;
@@ -208,8 +208,8 @@ const onBioPaste = (event: ClipboardEvent) => {
         </div>
 
         <div class="grid gap-2">
-            <Label :for="nameFor('hourly_rate')">Hourly rate (optional)</Label>
-            <Input
+            <Label :for="nameFor('hourly_rate')">Hourly rate in USD (optional)</Label>
+            <MoneyInput
                 :id="nameFor('hourly_rate')"
                 type="number"
                 min="0"

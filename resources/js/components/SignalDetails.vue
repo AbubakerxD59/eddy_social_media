@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+import { formatUsdAmount } from '@/lib/currency';
 import type { SignalNeed, SignalOpportunity } from '@/types/social';
 
 const { need, opportunity } = defineProps<{
@@ -10,7 +11,7 @@ const { need, opportunity } = defineProps<{
 const fields = computed(() => {
     if (need) {
         return [
-            { label: 'Budget', value: need.budget },
+            { label: 'Budget', value: formatUsdAmount(need.budget) },
             { label: 'Timeline', value: need.timeline },
             { label: 'Location', value: need.location },
             { label: 'Skills', value: need.skills.join(', ') || null },
@@ -19,7 +20,7 @@ const fields = computed(() => {
 
     if (opportunity) {
         return [
-            { label: 'Project value', value: opportunity.project_value },
+            { label: 'Project value', value: formatUsdAmount(opportunity.project_value) },
             { label: 'Timeline', value: opportunity.timeline },
             { label: 'Location', value: opportunity.location },
             { label: 'Trades needed', value: opportunity.trades.join(', ') || null },
