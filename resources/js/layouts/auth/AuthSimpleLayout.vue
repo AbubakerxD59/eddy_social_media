@@ -1,14 +1,39 @@
 <script setup lang="ts">
 import { Link } from '@inertiajs/vue3';
+import { computed } from 'vue';
 import AppLogoIcon from '@/components/AppLogoIcon.vue';
 import { Toaster } from '@/components/ui/sonner';
 import { home } from '@/routes';
 
-defineProps<{
+const props = defineProps<{
     title?: string;
     description?: string;
     wide?: boolean;
 }>();
+
+const descriptionParts = computed(() => {
+    const text = props.description ?? '';
+    const pattern = /([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/g;
+    const parts: { text: string; email: boolean }[] = [];
+    let lastIndex = 0;
+
+    for (const match of text.matchAll(pattern)) {
+        const index = match.index ?? 0;
+
+        if (index > lastIndex) {
+            parts.push({ text: text.slice(lastIndex, index), email: false });
+        }
+
+        parts.push({ text: match[0], email: true });
+        lastIndex = index + match[0].length;
+    }
+
+    if (lastIndex < text.length) {
+        parts.push({ text: text.slice(lastIndex), email: false });
+    }
+
+    return parts;
+});
 </script>
 
 <template>
@@ -33,8 +58,14 @@ defineProps<{
                     </Link>
                     <div class="space-y-2 text-center">
                         <h1 class="text-xl font-medium">{{ title }}</h1>
-                        <p class="text-muted-foreground text-center text-sm">
-                            {{ description }}
+                        <p v-if="description" class="text-muted-foreground text-center text-sm">
+                            <template v-for="(part, index) in descriptionParts" :key="index">
+                                <span
+                                    v-if="part.email"
+                                    class="text-foreground font-semibold break-all"
+                                >{{ part.text }}</span>
+                                <template v-else>{{ part.text }}</template>
+                            </template>
                         </p>
                     </div>
                 </div>

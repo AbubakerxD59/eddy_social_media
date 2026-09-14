@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "hooks": {
+    "afterFileEdit": [
+      {
+        "command": ".cursor/hooks/build-assets.sh",
+        "timeout": 180
+      }
+    ],
+    "afterTabFileEdit": [
+      {
+        "command": ".cursor/hooks/build-assets.sh",
+        "timeout": 180
+      }
+    ]
+  }
+}

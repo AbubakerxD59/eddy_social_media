@@ -1,0 +1,17 @@
+---
+description: Rebuild frontend assets after JS, Vue, CSS, or Vite config changes
+alwaysApply: true
+---
+
+# Frontend asset build
+
+After creating or editing frontend assets, run `npm run build` before finishing.
+
+Treat these as assets:
+
+- `resources/js/**`
+- `resources/css/**`
+- `vite.config.ts`
+- `tsconfig.json`
+
+Do not rebuild because `public/build/**` changed. If several asset files change in one task, run `npm run build` once at the end.

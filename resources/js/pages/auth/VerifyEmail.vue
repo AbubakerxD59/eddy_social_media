@@ -33,15 +33,8 @@ watchEffect(() => {
             class="text-sm font-medium text-green-600"
         >
             A new verification link has been sent to
-            <span class="break-all">{{ email }}</span>.
+            <span class="text-foreground font-semibold break-all">{{ email }}</span>.
         </div>
-
-        <p
-            v-if="email"
-            class="text-foreground text-sm font-medium break-all"
-        >
-            {{ email }}
-        </p>
 
         <Form
             v-bind="send.form()"
